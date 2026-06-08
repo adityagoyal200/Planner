@@ -3,7 +3,7 @@
 
 const SCOPES = "https://www.googleapis.com/auth/calendar.events";
 
-const CLIENT_ID = "166273735409-jq79q5ehpt72nn9n4o3qgli34c1hrdq8.apps.googleusercontent.com";
+const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 export interface CalendarEvent {
     id: string;

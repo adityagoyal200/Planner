@@ -285,3 +285,46 @@ export const useScheduleStore = create<ScheduleStore>()(
         }
     )
 );
+
+import { saveCloudState, fetchCloudState } from "../services/supabase";
+
+let syncTimer: ReturnType<typeof setTimeout> | null = null;
+let _currentUserId: string | null = null;
+
+export function setCloudUserId(userId: string | null) {
+    _currentUserId = userId;
+}
+
+function getCloudPayload() {
+    const s = useScheduleStore.getState();
+    return {
+        week: s.week,
+        quickNotes: s.quickNotes,
+        streak: s.streak,
+        lastCompletedDate: s.lastCompletedDate,
+        selectedDay: s.selectedDay,
+    };
+}
+
+useScheduleStore.subscribe(() => {
+    if (!_currentUserId) return;
+    if (syncTimer) clearTimeout(syncTimer);
+    const uid = _currentUserId;
+    syncTimer = setTimeout(() => {
+        saveCloudState(uid, getCloudPayload());
+    }, 2000);
+});
+
+export async function hydrateFromCloud(userId: string) {
+    const cloud = await fetchCloudState(userId);
+    if (!cloud || !cloud.week) return false;
+
+    useScheduleStore.setState({
+        week: cloud.week,
+        quickNotes: cloud.quickNotes ?? "",
+        streak: cloud.streak ?? 0,
+        lastCompletedDate: cloud.lastCompletedDate ?? null,
+        selectedDay: cloud.selectedDay ?? "mon",
+    });
+    return true;
+}
