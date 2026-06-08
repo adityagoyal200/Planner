@@ -21,8 +21,8 @@ export const useAuthStore = create<AuthStore>()(
             setUser: (user) => set({ user }),
             logout: () => {
                 set({ user: null });
-                // Clear the planner local storage too so next user gets fresh state
                 localStorage.removeItem("planner-storage");
+                window.location.reload();
             },
         }),
         {

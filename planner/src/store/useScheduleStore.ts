@@ -60,6 +60,8 @@ interface ScheduleStore {
     clearGoogle: () => void;
     updateCalendarEventLocal: (eventId: string, updates: Partial<CalendarEvent>) => void;
     syncCalendarEventUpdate: (eventId: string, updates: Partial<CalendarEvent>) => Promise<void>;
+
+    resetStore: () => void;
 }
 
 export const useScheduleStore = create<ScheduleStore>()(
@@ -279,6 +281,25 @@ export const useScheduleStore = create<ScheduleStore>()(
                     // Could revert optimistic update here if desired
                 }
             },
+
+            resetStore: () => set({
+                selectedDay: "mon",
+                quickNotes: "",
+                streak: 0,
+                lastCompletedDate: null,
+                focusBlockId: null,
+                googleToken: null,
+                calendarEvents: [],
+                week: {
+                    mon: createMonday(),
+                    tue: createTuesday(),
+                    wed: createWednesday(),
+                    thu: createThursday(),
+                    fri: createFriday(),
+                    sat: createSaturday(),
+                    sun: createSunday(),
+                },
+            }),
         }),
         {
             name: "planner-storage",
@@ -317,7 +338,12 @@ useScheduleStore.subscribe(() => {
 
 export async function hydrateFromCloud(userId: string) {
     const cloud = await fetchCloudState(userId);
-    if (!cloud || !cloud.week) return false;
+    if (!cloud || !cloud.week) {
+        // If there's no cloud state, it's a new user!
+        // We MUST wipe the in-memory state so they don't see the previous user's local data.
+        useScheduleStore.getState().resetStore();
+        return false;
+    }
 
     useScheduleStore.setState({
         week: cloud.week,
