@@ -68,7 +68,7 @@ export default function BlockInspector() {
                 <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
                     {isGoogle ? "Google Event Details" : "Block Details"}
                 </h3>
-                {!isGoogle && realBlock.actualStart != null && (
+                {!isGoogle && (realBlock as any).actualStart != null && (
                     <button 
                         onClick={() => updateBlock(selectedDay, block.id, { actualStart: null })}
                         className="text-[10px] text-rose-500 hover:text-rose-400 font-bold uppercase tracking-widest transition-colors flex items-center gap-1 bg-rose-500/10 hover:bg-rose-500/20 px-2 py-0.5 rounded"

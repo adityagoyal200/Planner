@@ -130,7 +130,7 @@ export default function Timeline() {
                                         if (isGap) {
                                             // Check if this gap is caused by the next block having an actualStart
                                             const nextBlock = scheduled.find((b: any, i: number) => i > index && !b.virtual);
-                                            const causedByManualBuffer = nextBlock && nextBlock.actualStart != null;
+                                            const causedByManualBuffer = nextBlock && (nextBlock as any).actualStart != null;
                                             
                                             return (
                                                 <div key={`gap-${index}`} className="flex items-center gap-6 py-2 group/gap">

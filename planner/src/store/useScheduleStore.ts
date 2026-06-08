@@ -246,8 +246,6 @@ export const useScheduleStore = create<ScheduleStore>()(
                 })),
 
             syncCalendarEventUpdate: async (eventId, updates) => {
-                const state = set; // zustand's get/set closure context
-                // Optimistically update local
                 useScheduleStore.getState().updateCalendarEventLocal(eventId, updates);
 
                 const token = useScheduleStore.getState().googleToken;
