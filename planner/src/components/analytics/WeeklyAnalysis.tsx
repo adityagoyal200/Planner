@@ -10,15 +10,20 @@ export default function WeeklyAnalysis() {
     let totalGymMins = 0;
 
     Object.values(week).forEach((dayData) => {
-        const { sleepTime } = computeSchedule(dayData);
+        const { sleepTime, totalNapMins } = computeSchedule(dayData);
         
+        const wakeMins = dayData.actualWakeTime !== null ? dayData.actualWakeTime : dayData.wakeTime;
+        const effectiveSleepTime = dayData.actualSleepTime !== null ? dayData.actualSleepTime : sleepTime;
+
         let sleepDurationMins = 0;
-        if (sleepTime <= 24 * 60) {
-            sleepDurationMins = (24 * 60 - sleepTime) + dayData.wakeTime;
+        if (effectiveSleepTime <= 24 * 60) {
+            sleepDurationMins = (24 * 60 - effectiveSleepTime) + wakeMins;
         } else {
-            const sleepNextDayMins = sleepTime - 24 * 60;
-            sleepDurationMins = dayData.wakeTime - sleepNextDayMins;
+            const sleepNextDayMins = effectiveSleepTime - 24 * 60;
+            sleepDurationMins = wakeMins - sleepNextDayMins;
         }
+        
+        sleepDurationMins += totalNapMins;
         totalSleepMins += sleepDurationMins;
 
         dayData.blocks.forEach(b => {

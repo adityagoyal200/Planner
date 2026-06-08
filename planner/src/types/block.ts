@@ -10,6 +10,7 @@ export type BlockType =
     | "aim"
     | "val"
     | "work"
+    | "nap"
     | "free";
 
 export interface Block {

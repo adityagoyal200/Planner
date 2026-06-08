@@ -54,6 +54,11 @@ export const BLOCK_META = {
         bg: "#0d0d0d",
     },
 
+    nap: {
+        emoji: "🛌",
+        bg: "#060611",
+    },
+
     free: {
         emoji: "☁️",
         bg: "#080808",

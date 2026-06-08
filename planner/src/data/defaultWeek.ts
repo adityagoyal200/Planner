@@ -40,6 +40,8 @@ const baseDay = (): DayData => ({
     sleepTarget: 420, // 7 hours
     commuteMins: 30,
     blocks: [],
+    actualWakeTime: null,
+    actualSleepTime: null,
 });
 
 export const createMonday = (): DayData => {
