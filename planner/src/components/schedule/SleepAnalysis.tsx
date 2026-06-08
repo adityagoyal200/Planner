@@ -18,10 +18,29 @@ export default function SleepAnalysis() {
     const { selectedDay, week, updateActualWakeTime, updateActualSleepTime } = useScheduleStore();
     const day = week[selectedDay];
 
+    const days = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+    const currentIdx = days.indexOf(selectedDay);
+    const yesterdayKey = days[(currentIdx - 1 + 7) % 7] as keyof typeof week;
+    const yesterdayData = week[yesterdayKey];
+    
+    // Calculate yesterday's sleep for comparison
+    const yDayScheduled = computeSchedule(yesterdayData);
+    const yDayWake = yesterdayData.actualWakeTime !== null ? yesterdayData.actualWakeTime : yesterdayData.wakeTime;
+    const yDaySleep = yesterdayData.actualSleepTime !== null ? yesterdayData.actualSleepTime : yDayScheduled.sleepTime;
+    let yDayDuration = 0;
+    if (yDaySleep <= 24 * 60) {
+        yDayDuration = (24 * 60 - yDaySleep) + yDayWake;
+    } else {
+        yDayDuration = yDayWake - (yDaySleep - 24 * 60);
+    }
+    yDayDuration += yDayScheduled.totalNapMins;
+    const yesterdaySleepStr = (yDayDuration / 60).toFixed(1);
+
     if (!day) return null;
 
     const { sleepTime, totalNapMins } = computeSchedule(day);
     
+    // Use actuals if provided, otherwise planned
     const wakeMins = day.actualWakeTime !== null ? day.actualWakeTime : day.wakeTime;
     const effectiveSleepTime = day.actualSleepTime !== null ? day.actualSleepTime : sleepTime;
     
@@ -40,84 +59,90 @@ export default function SleepAnalysis() {
     
     const isGoodSleep = sleepDurationMins >= day.sleepTarget;
     const colorClass = isGoodSleep ? "text-emerald-400" : "text-amber-400";
+    
+    const isReality = day.actualWakeTime !== null || day.actualSleepTime !== null;
 
     return (
         <div className="rounded-2xl border border-zinc-800/50 bg-gradient-to-b from-[#111] to-[#080808] p-5 shadow-2xl backdrop-blur-xl relative overflow-hidden group">
             <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent transition-opacity duration-500 group-hover:opacity-100 opacity-50" />
             
-            <h2 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-zinc-500 relative z-10 flex justify-between items-center">
-                <span>Sleep Tracker</span>
-                {totalNapMins > 0 && (
-                    <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider bg-zinc-900 px-2 py-1 rounded-md">
-                        + {totalNapMins}m Nap
-                    </span>
-                )}
-            </h2>
-
-            <div className="mt-5 relative z-10 flex items-end justify-between">
+            <div className="flex justify-between items-start relative z-10">
                 <div>
-                    <div className={`text-5xl font-black tracking-tighter ${colorClass} drop-shadow-lg`}>
-                        {sleepHours}h
+                    <h2 className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1">
+                        Last Night's Sleep
+                    </h2>
+                    <div className="flex items-baseline gap-2">
+                        <div className={`text-4xl font-black tracking-tighter ${colorClass} drop-shadow-lg`}>
+                            {sleepHours}h
+                        </div>
+                        {totalNapMins > 0 && (
+                            <div className="text-xs font-bold text-zinc-500 uppercase tracking-wider bg-zinc-900 px-2 py-0.5 rounded-md">
+                                + {totalNapMins}m Nap
+                            </div>
+                        )}
                     </div>
-                    <div className="text-zinc-500 mt-2 font-medium text-sm">
-                        Total sleep {day.actualSleepTime !== null ? "(Actual)" : "(Planned)"}
-                    </div>
+                </div>
+                <div className="text-right flex flex-col items-end">
+                    <div className="text-zinc-500 text-[10px] uppercase font-bold tracking-widest mb-1">Previous Night</div>
+                    <div className="text-lg font-black text-zinc-400 bg-zinc-900/50 px-3 py-1 rounded-lg border border-zinc-800/50">{yesterdaySleepStr}h</div>
                 </div>
             </div>
 
-            <div className="mt-6 space-y-4 relative z-10">
-                <div className="flex flex-col gap-1 border-b border-zinc-800/50 pb-4">
-                    <div className="flex justify-between items-center text-sm mb-1">
-                        <span className="text-zinc-500 font-bold uppercase tracking-wider text-[10px]">Woke up at</span>
-                        <span className="text-zinc-600 text-[10px] font-bold">Planned: {formatTime(day.wakeTime)}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
+            <div className="mt-2 relative z-10">
+                <span className={`text-[10px] uppercase font-bold tracking-widest px-2 py-1 rounded ${isReality ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : 'bg-zinc-800 text-zinc-400'}`}>
+                    {isReality ? 'Based on Reality' : 'Based on Planned Schedule'}
+                </span>
+            </div>
+
+            <div className="mt-6 border-t border-zinc-800/50 pt-5 relative z-10">
+                <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-bold text-zinc-300">Log Reality</h3>
+                    {isReality && (
+                        <button 
+                            onClick={() => {
+                                updateActualWakeTime(selectedDay, null);
+                                updateActualSleepTime(selectedDay, null);
+                            }}
+                            className="text-[10px] text-zinc-500 hover:text-rose-400 font-bold uppercase tracking-widest transition-colors flex items-center gap-1 bg-zinc-900 hover:bg-rose-950 px-2 py-1 rounded-md"
+                        >
+                            Reset
+                        </button>
+                    )}
+                </div>
+
+                <div className="space-y-3">
+                    <div className="flex items-center justify-between bg-zinc-900/50 border border-zinc-800/50 p-3 rounded-xl hover:border-zinc-700 transition-colors">
+                        <div className="flex flex-col">
+                            <span className="text-white text-sm font-bold">Woke up</span>
+                            <span className="text-zinc-500 text-[10px] font-bold">Planned: {formatTime(day.wakeTime)}</span>
+                        </div>
                         <input 
                             type="time" 
                             value={day.actualWakeTime !== null ? minsToTimeStr(day.actualWakeTime) : ""}
                             onChange={(e) => updateActualWakeTime(selectedDay, timeStrToMins(e.target.value))}
-                            className="bg-zinc-900 text-white border border-zinc-800 rounded-lg px-3 py-1.5 text-sm font-bold focus:outline-none focus:border-zinc-600 w-full"
-                            placeholder="Actual Wake Time"
+                            className="bg-zinc-800 text-white border border-zinc-700 rounded-lg px-2 py-1 text-sm font-bold focus:outline-none focus:border-indigo-500 hover:bg-zinc-700 transition-colors cursor-pointer"
                         />
                     </div>
-                </div>
 
-                <div className="flex flex-col gap-1">
-                    <div className="flex justify-between items-center text-sm mb-1">
-                        <span className="text-zinc-500 font-bold uppercase tracking-wider text-[10px]">Went to sleep at</span>
-                        <span className="text-zinc-600 text-[10px] font-bold">Planned: {formatTime(sleepTime)}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
+                    <div className="flex items-center justify-between bg-zinc-900/50 border border-zinc-800/50 p-3 rounded-xl hover:border-zinc-700 transition-colors">
+                        <div className="flex flex-col">
+                            <span className="text-white text-sm font-bold">Went to sleep</span>
+                            <span className="text-zinc-500 text-[10px] font-bold">Planned: {formatTime(sleepTime)}</span>
+                        </div>
                         <input 
                             type="time" 
                             value={day.actualSleepTime !== null ? minsToTimeStr(day.actualSleepTime) : ""}
                             onChange={(e) => {
                                 let mins = timeStrToMins(e.target.value);
-                                // If time is like 01:00 (AM), and planned sleep is usually after midnight
-                                // we need to add 24*60 if it's considered "next day" sleep.
-                                // For simplicity, if time is < 12:00PM (720 mins), assume it's next day sleep.
                                 if (mins !== null && mins < 12 * 60) {
                                     mins += 24 * 60;
                                 }
                                 updateActualSleepTime(selectedDay, mins);
                             }}
-                            className="bg-zinc-900 text-white border border-zinc-800 rounded-lg px-3 py-1.5 text-sm font-bold focus:outline-none focus:border-zinc-600 w-full"
-                            placeholder="Actual Sleep Time"
+                            className="bg-zinc-800 text-white border border-zinc-700 rounded-lg px-2 py-1 text-sm font-bold focus:outline-none focus:border-indigo-500 hover:bg-zinc-700 transition-colors cursor-pointer"
                         />
                     </div>
                 </div>
-                
-                {(day.actualWakeTime !== null || day.actualSleepTime !== null) && (
-                    <button 
-                        onClick={() => {
-                            updateActualWakeTime(selectedDay, null);
-                            updateActualSleepTime(selectedDay, null);
-                        }}
-                        className="w-full text-center text-[10px] text-zinc-500 hover:text-zinc-300 font-bold uppercase tracking-widest mt-2 transition-colors"
-                    >
-                        Reset to Planned
-                    </button>
-                )}
             </div>
         </div>
     );

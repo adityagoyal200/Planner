@@ -39,7 +39,9 @@ interface ScheduleStore {
     // Actions — Blocks
     updateBlock: (day: DayKey, blockId: string, updates: Partial<Block>) => void;
     moveBlock: (day: DayKey, blockId: string, direction: "up" | "down") => void;
+    reorderBlocks: (day: DayKey, startIndex: number, endIndex: number) => void;
     addBlock: (day: DayKey, type?: string, label?: string, dur?: number) => void;
+    insertBlock: (day: DayKey, type: string, index: number) => void;
     removeBlock: (day: DayKey, blockId: string) => void;
 
     // Actions — Features
@@ -134,6 +136,19 @@ export const useScheduleStore = create<ScheduleStore>()(
                     };
                 }),
 
+            reorderBlocks: (day, startIndex, endIndex) =>
+                set((state) => {
+                    const blocks = Array.from(state.week[day].blocks);
+                    const [removed] = blocks.splice(startIndex, 1);
+                    blocks.splice(endIndex, 0, removed);
+                    return {
+                        week: {
+                            ...state.week,
+                            [day]: { ...state.week[day], blocks },
+                        },
+                    };
+                }),
+
             addBlock: (day, type = "routine", label = "New Block", dur = 30) =>
                 set((state) => ({
                     week: {
@@ -153,6 +168,24 @@ export const useScheduleStore = create<ScheduleStore>()(
                         },
                     },
                 })),
+
+            insertBlock: (day, type, index) =>
+                set((state) => {
+                    const blocks = Array.from(state.week[day].blocks);
+                    blocks.splice(index, 0, {
+                        id: nanoid(),
+                        type: type as Block["type"],
+                        label: `New ${type}`,
+                        dur: type === "nap" ? 60 : 30,
+                        on: true,
+                    });
+                    return {
+                        week: {
+                            ...state.week,
+                            [day]: { ...state.week[day], blocks },
+                        },
+                    };
+                }),
 
             removeBlock: (day, blockId) =>
                 set((state) => ({

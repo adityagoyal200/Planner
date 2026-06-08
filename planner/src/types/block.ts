@@ -21,4 +21,5 @@ export interface Block {
     on: boolean;
     locked?: boolean;
     note?: string;
+    actualStart?: number | null;
 }

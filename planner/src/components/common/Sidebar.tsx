@@ -2,6 +2,7 @@ import clsx from "clsx";
 import { useScheduleStore } from "../../store/useScheduleStore";
 import { computeSchedule } from "../../engine/computeSchedule";
 import FocusTimer from "./FocusTimer";
+import BlockInspector from "./BlockInspector";
 import { getQuoteOfTheDay } from "../../data/quotes";
 
 const days = [
@@ -71,6 +72,11 @@ export default function Sidebar() {
             {/* Focus Timer */}
             <div className="mb-8">
                 <FocusTimer />
+            </div>
+
+            {/* Block Inspector */}
+            <div className="mb-8">
+                <BlockInspector />
             </div>
 
             {/* Quick Notes */}

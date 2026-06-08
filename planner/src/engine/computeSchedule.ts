@@ -17,10 +17,9 @@ export function computeSchedule(day: DayData) {
 
     // First pass to find specific blocks for validation & scoring
     for (const block of day.blocks) {
-        if (!block.virtual) {
-            totalRealBlocks++;
-            if (block.on) onBlocksCount++;
-        }
+        totalRealBlocks++;
+        if (block.on) onBlocksCount++;
+        
         if (!block.on) continue;
         if (block.type === "swim") swimActive = true;
         if (block.type === "nap") totalNapMins += block.dur;
@@ -65,12 +64,14 @@ export function computeSchedule(day: DayData) {
             });
             t += day.commuteMins;
 
+            if (block.actualStart != null) t = Math.max(t, block.actualStart);
+
             scheduled.push({
                 ...block,
-                start: day.workStart,
-                end: day.workStart + block.dur,
+                start: t,
+                end: t + block.dur,
             });
-            t = day.workStart + block.dur;
+            t += block.dur;
 
             scheduled.push({
                 id: `commute-home`,
@@ -83,6 +84,8 @@ export function computeSchedule(day: DayData) {
             });
             t += day.commuteMins + 15;
         } else {
+            if (block.actualStart != null) t = Math.max(t, block.actualStart);
+
             // Check if 10 DM aim routine is placed before work
             if (block.type === "aim" && t < day.workStart && isWorkday) {
                 aimInMorning = true;
