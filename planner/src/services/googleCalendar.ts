@@ -42,14 +42,14 @@ export function initGoogleAuth(onTokenReceived: (token: string) => void): Promis
 }
 
 /**
- * Trigger Google sign-in popup.
+ * Trigger Google sign-in popup or silently request a token if already consented.
  */
-export function requestGoogleAccess() {
+export function requestGoogleAccess(silent = false) {
     if (!tokenClient) {
         console.error("Google auth not initialized. Call initGoogleAuth first.");
         return;
     }
-    tokenClient.requestAccessToken({ prompt: "consent" });
+    tokenClient.requestAccessToken({ prompt: silent ? "" : "consent" });
 }
 
 /**

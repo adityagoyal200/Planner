@@ -29,8 +29,8 @@ export default function CalendarSync() {
         } catch (err: any) {
             console.error(err);
             if (err.message === "TOKEN_EXPIRED") {
-                clearGoogle();
-                setError("Session expired. Please reconnect.");
+                // Silently request a new token if expired
+                requestGoogleAccess(true);
             } else {
                 setError("Failed to fetch events.");
             }

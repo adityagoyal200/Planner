@@ -24,9 +24,10 @@ const EMOJI_TABS = [
 ];
 
 export default function BlockTypePicker({ onClose }: Props) {
-    const { categories, addCategory, removeCategory } = useScheduleStore();
+    const { categories, addCategory, updateCategory, removeCategory } = useScheduleStore();
     const [isAdding, setIsAdding] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
+    const [editingCatId, setEditingCatId] = useState<string | null>(null);
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const [emojiTab, setEmojiTab] = useState("Activity");
     
@@ -35,15 +36,32 @@ export default function BlockTypePicker({ onClose }: Props) {
     const [newEmoji, setNewEmoji] = useState("✨");
     const [newColor, setNewColor] = useState(PRESET_COLORS[0]);
 
-    const handleAdd = () => {
-        if (!newName.trim()) return;
-        addCategory({
-            id: nanoid(6).toLowerCase(), // e.g. "gaming"
-            name: newName.trim(),
-            emoji: newEmoji,
-            bg: newColor
-        });
+    const openEditForm = (cat: any) => {
+        setEditingCatId(cat.id);
+        setNewName(cat.name);
+        setNewEmoji(cat.emoji);
+        setNewColor(cat.bg || PRESET_COLORS[0]);
         setIsAdding(false);
+    };
+
+    const handleSave = () => {
+        if (!newName.trim()) return;
+        if (editingCatId) {
+            updateCategory(editingCatId, {
+                name: newName.trim(),
+                emoji: newEmoji,
+                bg: newColor
+            });
+            setEditingCatId(null);
+        } else {
+            addCategory({
+                id: nanoid(6).toLowerCase(),
+                name: newName.trim(),
+                emoji: newEmoji,
+                bg: newColor
+            });
+            setIsAdding(false);
+        }
         setNewName("");
     };
 
@@ -51,10 +69,10 @@ export default function BlockTypePicker({ onClose }: Props) {
         <div className="fixed inset-x-4 bottom-4 sm:absolute sm:inset-auto sm:top-full sm:right-0 sm:mt-2 z-[100] p-4 rounded-2xl border border-white/10 bg-black/40 shadow-2xl backdrop-blur-2xl sm:w-[320px] origin-bottom sm:origin-top-right animate-in fade-in slide-in-from-bottom-4 sm:slide-in-from-top-2 duration-300">
             <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent rounded-2xl pointer-events-none" />
             <div className="flex items-center justify-between mb-3 relative z-10">
-                <h3 className="text-sm font-bold text-zinc-300">{isEditing ? 'Tap to Remove' : 'Drag to Timeline'}</h3>
+                <h3 className="text-sm font-bold text-zinc-300">{isEditing ? 'Tap to Edit / Remove' : 'Drag to Timeline'}</h3>
                 <div className="flex items-center gap-2">
                     <button 
-                        onClick={() => setIsEditing(!isEditing)} 
+                        onClick={() => { setIsEditing(!isEditing); setEditingCatId(null); setIsAdding(false); }} 
                         className={`text-xs font-bold px-2 py-1 rounded-md transition-colors ${isEditing ? 'bg-red-500/20 text-red-400' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'}`}
                     >
                         {isEditing ? 'Done' : 'Edit'}
@@ -80,14 +98,18 @@ export default function BlockTypePicker({ onClose }: Props) {
                                             ref={provided.innerRef}
                                             {...provided.draggableProps}
                                             {...(isEditing ? {} : provided.dragHandleProps)}
-                                            onClick={isEditing ? () => { if (confirm(`Remove "${cat.name}" category?`)) removeCategory(cat.id); } : undefined}
+                                            onClick={isEditing ? () => openEditForm(cat) : undefined}
                                             className={`flex flex-col items-center justify-center p-2 rounded-xl transition-all duration-300 hover:bg-white/10 border relative backdrop-blur-md
-                                                ${isEditing ? 'border-red-500/50 hover:border-red-400 bg-red-950/20 cursor-pointer animate-pulse-subtle' : 'border-white/5 hover:border-white/20 bg-white/5'}
+                                                ${isEditing ? 'border-zinc-500/50 hover:border-zinc-400 bg-zinc-900/40 cursor-pointer animate-pulse-subtle' : 'border-white/5 hover:border-white/20 bg-white/5'}
                                                 ${snapshot.isDragging ? 'shadow-2xl z-50 scale-110 border-white/40 bg-white/10' : ''}`}
-                                            title={isEditing ? `Remove ${cat.name}` : cat.name}
+                                            title={isEditing ? `Edit ${cat.name}` : cat.name}
                                         >
                                             {isEditing && (
-                                                <div className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center text-[8px] font-bold text-white shadow-lg z-20">
+                                                <div 
+                                                    onClick={(e) => { e.stopPropagation(); if (confirm(`Remove "${cat.name}" category?`)) removeCategory(cat.id); }}
+                                                    className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center text-[8px] font-bold text-white shadow-lg z-20 hover:bg-red-400 cursor-pointer transition-colors"
+                                                    title={`Remove ${cat.name}`}
+                                                >
                                                     ✕
                                                 </div>
                                             )}
@@ -109,9 +131,9 @@ export default function BlockTypePicker({ onClose }: Props) {
                         {provided.placeholder}
                         
                         {/* Add Button */}
-                        {!isAdding && (
+                        {(!isAdding && !editingCatId) && (
                             <div 
-                                onClick={() => setIsAdding(true)}
+                                onClick={() => { setIsAdding(true); setEditingCatId(null); setNewName(""); setNewEmoji("✨"); setNewColor(PRESET_COLORS[0]); }}
                                 className="flex flex-col items-center justify-center p-2 rounded-xl border border-dashed border-zinc-800 hover:border-zinc-500 hover:bg-zinc-900 cursor-pointer transition-colors"
                             >
                                 <span className="text-2xl mb-1 text-zinc-600">+</span>
@@ -122,8 +144,8 @@ export default function BlockTypePicker({ onClose }: Props) {
                 )}
             </Droppable>
 
-            {/* Add Category Form */}
-            {isAdding && (
+            {/* Add/Edit Category Form */}
+            {(isAdding || editingCatId) && (
                 <div className="mt-4 pt-4 border-t border-zinc-800/50 relative z-10 animate-in fade-in slide-in-from-top-2">
                     <div className="flex gap-2 mb-3">
                         <div className="flex-1">
@@ -184,16 +206,16 @@ export default function BlockTypePicker({ onClose }: Props) {
 
                     <div className="flex gap-2">
                         <button 
-                            onClick={() => setIsAdding(false)}
+                            onClick={() => { setIsAdding(false); setEditingCatId(null); }}
                             className="flex-1 py-2 rounded-lg text-xs font-bold text-zinc-500 hover:bg-zinc-900 transition-colors"
                         >
                             Cancel
                         </button>
                         <button 
-                            onClick={handleAdd}
+                            onClick={handleSave}
                             className="flex-1 py-2 rounded-lg text-xs font-bold bg-white text-black hover:bg-zinc-200 transition-colors"
                         >
-                            Create
+                            {editingCatId ? 'Save' : 'Create'}
                         </button>
                     </div>
                 </div>
