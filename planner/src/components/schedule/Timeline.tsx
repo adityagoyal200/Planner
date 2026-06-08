@@ -81,10 +81,10 @@ export default function Timeline() {
                     <div className="relative">
                         <button
                             onClick={() => setShowPicker(!showPicker)}
-                            className="rounded-xl bg-white text-black px-5 py-2.5 font-bold shadow-[0_0_20px_rgba(255,255,255,0.2)] hover:shadow-[0_0_30px_rgba(255,255,255,0.4)] transition-all duration-300 hover:scale-105 cursor-pointer flex items-center gap-2"
+                            className="rounded-xl bg-white text-black px-3 py-2 sm:px-5 sm:py-2.5 font-bold shadow-[0_0_20px_rgba(255,255,255,0.2)] hover:shadow-[0_0_30px_rgba(255,255,255,0.4)] transition-all duration-300 hover:scale-105 cursor-pointer flex items-center gap-1 sm:gap-2"
                         >
                             <Plus className="w-5 h-5" />
-                            Add Block
+                            <span className="hidden sm:inline">Add Block</span>
                         </button>
                         {showPicker && (
                             <BlockTypePicker onClose={() => setShowPicker(false)} />
@@ -130,8 +130,8 @@ export default function Timeline() {
                                             const causedByManualBuffer = nextBlock && (nextBlock as any).actualStart != null;
                                             
                                             return (
-                                                <div key={`gap-${index}`} className="flex items-center gap-6 py-2 group/gap">
-                                                    <div className="w-20 text-right text-xs font-bold text-zinc-600 tracking-widest">
+                                                <div key={`gap-${index}`} className="flex items-center gap-3 sm:gap-6 py-2 group/gap">
+                                                    <div className="w-12 sm:w-16 text-right text-xs font-bold text-zinc-600 tracking-widest shrink-0">
                                                         {formatTime(block.start)}
                                                     </div>
                                                     <div className="flex-1 flex items-center gap-4 border-t border-dashed border-zinc-800/50 relative">
@@ -156,7 +156,7 @@ export default function Timeline() {
                                         const renderNowLine = isActive && (
                                             <div className="absolute left-0 right-0 z-50 pointer-events-none" style={{ top: `${nowProgress * 100}%` }}>
                                                 <div className="flex items-center">
-                                                    <div className="w-20 flex justify-end pr-4">
+                                                    <div className="w-12 sm:w-16 flex justify-end pr-2 sm:pr-4 shrink-0">
                                                         <div className="bg-rose-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-[0_0_10px_rgba(244,63,94,0.5)]">
                                                             NOW
                                                         </div>
@@ -199,21 +199,21 @@ export default function Timeline() {
                                                 {/* Block Card */}
                                                 <div 
                                                     onClick={() => { if (!isVirtual || isGoogle) setFocusBlock(focusBlockId === block.id ? null : block.id); }}
-                                                    className={`flex-1 rounded-2xl border p-4 transition-all duration-300 group relative overflow-hidden backdrop-blur-md ${(!isVirtual || isGoogle) ? 'cursor-pointer' : ''}
+                                                    className={`flex-1 rounded-2xl border p-3 sm:p-4 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] group relative overflow-hidden backdrop-blur-2xl ${(!isVirtual || isGoogle) ? 'cursor-pointer glass-card' : ''}
                                                         ${isVirtual && !isGoogle ? 'border-zinc-900 bg-zinc-900/10' : ''}
                                                         ${isGoogle ? 'border-zinc-800/80 shadow-lg' : ''}
-                                                        ${!isVirtual ? 'border-zinc-800/50 hover:border-zinc-600/50' : ''}
-                                                        ${isActive && !isVirtual ? 'shadow-[0_0_30px_rgba(255,255,255,0.05)] border-zinc-700' : ''}
-                                                        ${isDragging ? 'border-zinc-500 shadow-[0_0_40px_rgba(0,0,0,0.5)]' : ''}
-                                                        ${(!isVirtual || isGoogle) && focusBlockId === block.id ? 'ring-1 ring-indigo-500/60 border-indigo-500/40 shadow-[0_0_20px_rgba(99,102,241,0.15)]' : ''}
+                                                        ${!isVirtual ? 'hover:border-white/20' : ''}
+                                                        ${isActive && !isVirtual ? 'shadow-[0_0_30px_rgba(255,255,255,0.05)] border-zinc-500 scale-[1.01]' : 'border-white/5'}
+                                                        ${isDragging ? 'border-zinc-400 shadow-[0_0_40px_rgba(0,0,0,0.5)] scale-105 z-50' : ''}
+                                                        ${(!isVirtual || isGoogle) && focusBlockId === block.id ? 'ring-1 ring-indigo-500/60 border-indigo-500/40 shadow-[0_0_30px_rgba(99,102,241,0.15)] scale-[1.02] z-40' : ''}
                                                     `}
                                                     style={isGoogle ? {
-                                                        background: `linear-gradient(135deg, ${block.color}15 0%, #050505 100%)`,
+                                                        background: `linear-gradient(135deg, ${block.color}15 0%, rgba(5,5,5,0.5) 100%)`,
                                                         borderColor: `${block.color}30`
                                                     } : (!isVirtual ? {
                                                         background: `linear-gradient(135deg, ${
                                                             categories.find(c => c.id === block.type)?.bg || "#111"
-                                                        } 0%, #050505 100%)`,
+                                                        }aa 0%, rgba(255,255,255,0.02) 100%)`,
                                                     } : {})}
                                                 >
                                                     {isActive && !isVirtual && (

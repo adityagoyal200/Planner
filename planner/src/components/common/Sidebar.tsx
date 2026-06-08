@@ -23,7 +23,7 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
     const quote = getQuoteOfTheDay();
 
     return (
-        <div className="w-80 h-full border-r border-zinc-900 bg-[#030303] p-5 flex flex-col relative z-10 overflow-y-auto">
+        <div className="w-80 h-full border-r border-white/5 bg-black/40 backdrop-blur-xl p-5 flex flex-col relative z-10 overflow-y-auto">
             <div className="flex items-center justify-between mb-8">
                 <div>
                     <div className="text-3xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-br from-white to-zinc-500">
@@ -43,7 +43,7 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
             </div>
 
             {/* Day Picker Compact */}
-            <div className="flex items-center justify-between bg-zinc-900/50 p-1.5 rounded-2xl mb-8">
+            <div className="flex items-center justify-between glass-card p-1.5 rounded-2xl mb-8">
                 {days.map((d) => (
                     <button
                         key={d.id}
@@ -62,12 +62,12 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
 
             {/* Score & Streak Grid */}
             <div className="grid grid-cols-2 gap-3 mb-8">
-                <div className="bg-[#0a0a0a] border border-zinc-800 rounded-2xl p-4 flex flex-col justify-between">
+                <div className="glass-card rounded-2xl p-4 flex flex-col justify-between">
                     <div className="text-zinc-500 text-xs font-bold uppercase tracking-wider mb-2">Today</div>
                     <div className="text-3xl font-black text-white">{Math.round(dayScore)}<span className="text-xl text-zinc-600">%</span></div>
                 </div>
                 
-                <div className="bg-[#0a0a0a] border border-zinc-800 rounded-2xl p-4 flex flex-col justify-between">
+                <div className="glass-card rounded-2xl p-4 flex flex-col justify-between">
                     <div className="text-zinc-500 text-xs font-bold uppercase tracking-wider mb-2">Streak</div>
                     <div className="flex items-center gap-1">
                         <span className="text-3xl font-black text-white">{streak}</span>
@@ -93,7 +93,7 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
                     value={quickNotes}
                     onChange={(e) => updateQuickNotes(e.target.value)}
                     placeholder="Capture thoughts here..."
-                    className="flex-1 w-full bg-zinc-900/30 border border-zinc-800/50 rounded-2xl p-4 text-sm text-zinc-300 focus:outline-none focus:border-zinc-600 focus:bg-zinc-900 transition-all resize-none placeholder:text-zinc-700 leading-relaxed"
+                    className="flex-1 w-full glass-card rounded-2xl p-4 text-sm text-zinc-300 focus:outline-none focus:border-white/20 transition-all resize-none placeholder:text-zinc-600 leading-relaxed"
                 />
             </div>
 

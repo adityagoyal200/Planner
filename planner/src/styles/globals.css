@@ -9,7 +9,8 @@ body,
 #root {
     margin: 0;
     min-height: 100%;
-    background: #000000;
+    /* A deep space dark theme */
+    background-color: #050505;
     color: white;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
     overscroll-behavior: none;
@@ -17,6 +18,58 @@ body,
 
 body {
     overflow-x: hidden;
+}
+
+/* Background Animated Orbs for depth */
+.glass-bg {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: -1;
+    overflow: hidden;
+    background: #020202;
+}
+
+.glass-bg::before,
+.glass-bg::after {
+    content: '';
+    position: absolute;
+    width: 80vw;
+    height: 80vw;
+    max-width: 800px;
+    max-height: 800px;
+    border-radius: 50%;
+    filter: blur(120px);
+    opacity: 0.15;
+    animation: float 20s infinite ease-in-out alternate;
+}
+
+.glass-bg::before {
+    top: -20%;
+    left: -10%;
+    background: radial-gradient(circle, rgba(100, 150, 255, 0.8) 0%, rgba(0, 0, 0, 0) 70%);
+}
+
+.glass-bg::after {
+    bottom: -20%;
+    right: -10%;
+    background: radial-gradient(circle, rgba(150, 80, 255, 0.8) 0%, rgba(0, 0, 0, 0) 70%);
+    animation-delay: -10s;
+}
+
+@keyframes float {
+    0% { transform: translate(0, 0) scale(1); }
+    100% { transform: translate(5%, 10%) scale(1.1); }
+}
+
+.glass-card {
+    background: rgba(255, 255, 255, 0.02);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
 }
 
 /* Custom minimal scrollbar */
@@ -30,12 +83,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-    background: #222;
+    background: rgba(255, 255, 255, 0.1);
     border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: #444;
+    background: rgba(255, 255, 255, 0.2);
 }
 
 /* Base utility overrides for aesthetics */

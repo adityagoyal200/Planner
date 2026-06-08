@@ -38,7 +38,7 @@ export default function WeeklyAnalysis() {
     const sleepDebt = Math.max(0, targetSleepMins - totalSleepMins);
 
     return (
-        <div className="rounded-2xl border border-indigo-900/30 bg-gradient-to-br from-[#0c0c14] to-[#050508] p-5 shadow-2xl backdrop-blur-xl relative overflow-hidden group">
+        <div className="glass-card rounded-2xl p-5 relative overflow-hidden group">
             <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-indigo-500/20 to-transparent transition-opacity duration-500 opacity-50" />
             
             <h2 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-200 to-indigo-500 relative z-10 mb-6">

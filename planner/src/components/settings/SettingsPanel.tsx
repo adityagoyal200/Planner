@@ -18,7 +18,7 @@ export default function SettingsPanel() {
     if (!day) return null;
 
     return (
-        <div className="rounded-2xl border border-zinc-800/50 bg-gradient-to-b from-[#111] to-[#080808] p-5 shadow-2xl backdrop-blur-xl relative overflow-hidden">
+        <div className="glass-card rounded-2xl p-5 relative overflow-hidden">
             <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
             
             <h2 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-zinc-500">

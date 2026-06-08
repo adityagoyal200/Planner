@@ -24,8 +24,9 @@ const EMOJI_TABS = [
 ];
 
 export default function BlockTypePicker({ onClose }: Props) {
-    const { categories, addCategory } = useScheduleStore();
+    const { categories, addCategory, removeCategory } = useScheduleStore();
     const [isAdding, setIsAdding] = useState(false);
+    const [isEditing, setIsEditing] = useState(false);
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const [emojiTab, setEmojiTab] = useState("Activity");
     
@@ -47,13 +48,21 @@ export default function BlockTypePicker({ onClose }: Props) {
     };
 
     return (
-        <div className="absolute top-full right-0 mt-2 z-50 p-4 rounded-2xl border border-zinc-800 bg-[#0a0a0a] shadow-2xl backdrop-blur-xl w-[320px] origin-top-right animate-in fade-in zoom-in duration-200">
+        <div className="fixed inset-x-4 bottom-4 sm:absolute sm:inset-auto sm:top-full sm:right-0 sm:mt-2 z-[100] p-4 rounded-2xl border border-white/10 bg-black/40 shadow-2xl backdrop-blur-2xl sm:w-[320px] origin-bottom sm:origin-top-right animate-in fade-in slide-in-from-bottom-4 sm:slide-in-from-top-2 duration-300">
             <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent rounded-2xl pointer-events-none" />
             <div className="flex items-center justify-between mb-3 relative z-10">
-                <h3 className="text-sm font-bold text-zinc-300">Drag to Timeline</h3>
-                <button onClick={onClose} className="text-zinc-500 hover:text-white transition-colors">
-                    ✕
-                </button>
+                <h3 className="text-sm font-bold text-zinc-300">{isEditing ? 'Tap to Remove' : 'Drag to Timeline'}</h3>
+                <div className="flex items-center gap-2">
+                    <button 
+                        onClick={() => setIsEditing(!isEditing)} 
+                        className={`text-xs font-bold px-2 py-1 rounded-md transition-colors ${isEditing ? 'bg-red-500/20 text-red-400' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'}`}
+                    >
+                        {isEditing ? 'Done' : 'Edit'}
+                    </button>
+                    <button onClick={onClose} className="text-zinc-500 hover:text-white transition-colors">
+                        ✕
+                    </button>
+                </div>
             </div>
             
             <Droppable droppableId="palette" isDropDisabled={true} direction="horizontal">
@@ -70,10 +79,18 @@ export default function BlockTypePicker({ onClose }: Props) {
                                         <div
                                             ref={provided.innerRef}
                                             {...provided.draggableProps}
-                                            {...provided.dragHandleProps}
-                                            className={`flex flex-col items-center justify-center p-2 rounded-xl transition-all duration-200 hover:bg-zinc-800 border border-transparent hover:border-zinc-700 bg-[#0a0a0a] ${snapshot.isDragging ? 'shadow-2xl z-50 scale-110 border-zinc-500' : ''}`}
-                                            title={cat.name}
+                                            {...(isEditing ? {} : provided.dragHandleProps)}
+                                            onClick={isEditing ? () => { if (confirm(`Remove "${cat.name}" category?`)) removeCategory(cat.id); } : undefined}
+                                            className={`flex flex-col items-center justify-center p-2 rounded-xl transition-all duration-300 hover:bg-white/10 border relative backdrop-blur-md
+                                                ${isEditing ? 'border-red-500/50 hover:border-red-400 bg-red-950/20 cursor-pointer animate-pulse-subtle' : 'border-white/5 hover:border-white/20 bg-white/5'}
+                                                ${snapshot.isDragging ? 'shadow-2xl z-50 scale-110 border-white/40 bg-white/10' : ''}`}
+                                            title={isEditing ? `Remove ${cat.name}` : cat.name}
                                         >
+                                            {isEditing && (
+                                                <div className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center text-[8px] font-bold text-white shadow-lg z-20">
+                                                    ✕
+                                                </div>
+                                            )}
                                             <span className="text-2xl mb-1 drop-shadow-md pointer-events-none">{cat.emoji}</span>
                                             <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider pointer-events-none truncate w-full text-center">
                                                 {cat.name}

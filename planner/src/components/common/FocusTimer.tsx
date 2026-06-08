@@ -37,7 +37,7 @@ export default function FocusTimer() {
     const progress = ((DEFAULT_TIME - timeLeft) / DEFAULT_TIME) * 100;
 
     return (
-        <div className="bg-[#111] border border-zinc-800 rounded-2xl p-5 relative overflow-hidden group">
+        <div className="glass-card rounded-2xl p-5 relative overflow-hidden group">
             <div className={`absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-rose-500 to-orange-500 transition-all duration-1000 ease-linear`} style={{ width: `${progress}%` }} />
             
             {isRunning && (

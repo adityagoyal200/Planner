@@ -14,8 +14,7 @@ export default function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
     };
 
     return (
-        <div className="h-16 border-b border-zinc-900 bg-[#050505] px-4 md:px-6 flex items-center justify-between sticky top-0 z-30">
-
+        <div className="h-16 border-b border-white/5 bg-black/20 backdrop-blur-xl px-4 md:px-6 flex items-center justify-between sticky top-0 z-30 shadow-sm">
             <div className="flex items-center gap-4">
                 {onMenuClick && (
                     <button onClick={onMenuClick} className="p-2 -ml-2 text-zinc-400 hover:text-white lg:hidden">

@@ -28,7 +28,7 @@ export default function BlockInspector() {
 
     if (!block || (block.virtual && !isGoogle) || !realBlock) {
         return (
-            <div className="bg-[#0a0a0a] border border-zinc-800/50 rounded-2xl p-4 text-center">
+            <div className="glass-card rounded-2xl p-4 text-center">
                 <p className="text-xs text-zinc-500 font-bold uppercase tracking-wider">Select a block to inspect</p>
             </div>
         );
@@ -63,7 +63,7 @@ export default function BlockInspector() {
     };
 
     return (
-        <div className="bg-[#0a0a0a] border border-zinc-800/50 rounded-2xl p-4">
+        <div className="glass-card rounded-2xl p-4">
             <div className="flex items-center justify-between mb-4">
                 <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
                     {isGoogle ? "Google Event Details" : "Block Details"}

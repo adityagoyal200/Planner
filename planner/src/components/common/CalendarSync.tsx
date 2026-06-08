@@ -57,7 +57,7 @@ export default function CalendarSync() {
     };
 
     return (
-        <div className="bg-[#0a0a0a] border border-zinc-800 rounded-2xl p-4">
+        <div className="glass-card rounded-2xl p-4">
             <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-bold text-zinc-300 flex items-center gap-2">
                     <svg className="w-4 h-4 text-zinc-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

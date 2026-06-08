@@ -63,7 +63,7 @@ export default function SleepAnalysis() {
     const isReality = day.actualWakeTime !== null || day.actualSleepTime !== null;
 
     return (
-        <div className="rounded-2xl border border-zinc-800/50 bg-gradient-to-b from-[#111] to-[#080808] p-5 shadow-2xl backdrop-blur-xl relative overflow-hidden group">
+        <div className="glass-card rounded-2xl p-5 relative overflow-hidden group">
             <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent transition-opacity duration-500 group-hover:opacity-100 opacity-50" />
             
             <div className="flex justify-between items-start relative z-10">
