@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useScheduleStore } from "../../store/useScheduleStore";
 import { initGoogleAuth, requestGoogleAccess, revokeGoogleAccess, fetchTodayEvents } from "../../services/googleCalendar";
 
@@ -20,13 +20,7 @@ export default function CalendarSync() {
         });
     }, [setGoogleToken]);
 
-    useEffect(() => {
-        if (googleToken) {
-            handleFetchEvents(googleToken);
-        }
-    }, [googleToken]);
-
-    const handleFetchEvents = async (token: string) => {
+    const handleFetchEvents = useCallback(async (token: string) => {
         setIsLoading(true);
         setError(null);
         try {
@@ -43,7 +37,13 @@ export default function CalendarSync() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [setCalendarEvents, clearGoogle]);
+
+    useEffect(() => {
+        if (googleToken) {
+            handleFetchEvents(googleToken);
+        }
+    }, [googleToken, handleFetchEvents]);
 
     const handleConnect = () => {
         requestGoogleAccess();
