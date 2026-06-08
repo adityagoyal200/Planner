@@ -19,11 +19,14 @@ export default function BlockInspector() {
 
     if (!day || !focusBlockId) return null;
 
-    const { scheduled } = computeSchedule(day);
+    const { scheduled } = computeSchedule(day, useScheduleStore.getState().calendarEvents);
     const block = scheduled.find((b: any) => b.id === focusBlockId);
-    const realBlock = day.blocks.find(b => b.id === focusBlockId);
+    
+    // We allow normal blocks OR google blocks
+    const isGoogle = block?.source === "google";
+    const realBlock = isGoogle ? block.originalEvent : day.blocks.find(b => b.id === focusBlockId);
 
-    if (!block || block.virtual || !realBlock) {
+    if (!block || (block.virtual && !isGoogle) || !realBlock) {
         return (
             <div className="bg-[#0a0a0a] border border-zinc-800/50 rounded-2xl p-4 text-center">
                 <p className="text-xs text-zinc-500 font-bold uppercase tracking-wider">Select a block to inspect</p>
@@ -33,21 +36,28 @@ export default function BlockInspector() {
 
     const handleStartChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const mins = timeStrToMins(e.target.value);
-        updateBlock(selectedDay, block.id, { actualStart: mins });
+        if (mins !== null) {
+            if (isGoogle) {
+                useScheduleStore.getState().syncCalendarEventUpdate(block.originalEvent.id, { startMins: mins, endMins: mins + block.dur });
+            } else {
+                updateBlock(selectedDay, block.id, { actualStart: mins });
+            }
+        }
     };
 
     const handleEndChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const newEndMins = timeStrToMins(e.target.value);
         if (newEndMins !== null) {
-            // End Time = Start Time + Duration
-            // So new Duration = newEndMins - Start Time
             let newDur = newEndMins - block.start;
-            // Handle cross-midnight logic if end time is early morning but start time is late night
             if (newDur < 0 && newEndMins < 12 * 60) {
                 newDur = (newEndMins + 24 * 60) - block.start;
             }
             if (newDur > 0) {
-                updateBlock(selectedDay, block.id, { dur: newDur });
+                if (isGoogle) {
+                    useScheduleStore.getState().syncCalendarEventUpdate(block.originalEvent.id, { endMins: block.start + newDur });
+                } else {
+                    updateBlock(selectedDay, block.id, { dur: newDur });
+                }
             }
         }
     };
@@ -55,8 +65,10 @@ export default function BlockInspector() {
     return (
         <div className="bg-[#0a0a0a] border border-zinc-800/50 rounded-2xl p-4">
             <div className="flex items-center justify-between mb-4">
-                <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Block Details</h3>
-                {realBlock.actualStart != null && (
+                <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+                    {isGoogle ? "Google Event Details" : "Block Details"}
+                </h3>
+                {!isGoogle && realBlock.actualStart != null && (
                     <button 
                         onClick={() => updateBlock(selectedDay, block.id, { actualStart: null })}
                         className="text-[10px] text-rose-500 hover:text-rose-400 font-bold uppercase tracking-widest transition-colors flex items-center gap-1 bg-rose-500/10 hover:bg-rose-500/20 px-2 py-0.5 rounded"

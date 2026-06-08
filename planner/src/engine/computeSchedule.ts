@@ -1,6 +1,7 @@
 import type { DayData } from "../types/schedule";
+import type { CalendarEvent } from "../services/googleCalendar";
 
-export function computeSchedule(day: DayData) {
+export function computeSchedule(day: DayData, calendarEvents: CalendarEvent[] = []) {
     let t = day.actualWakeTime !== null ? day.actualWakeTime : day.wakeTime;
     const scheduled = [];
     const warnings: string[] = [];
@@ -15,7 +16,6 @@ export function computeSchedule(day: DayData) {
     let onBlocksCount = 0;
     let totalRealBlocks = 0;
 
-    // First pass to find specific blocks for validation & scoring
     for (const block of day.blocks) {
         totalRealBlocks++;
         if (block.on) onBlocksCount++;
@@ -26,6 +26,38 @@ export function computeSchedule(day: DayData) {
     }
 
     const dayScore = totalRealBlocks > 0 ? (onBlocksCount / totalRealBlocks) * 100 : 100;
+
+    const sortedEvents = [...calendarEvents].filter(e => !e.allDay).sort((a, b) => a.startMins - b.startMins);
+    const processedEvents = new Set<string>();
+
+    // Helper to process overlapping google events before placing a block
+    const pushPastGoogleEvents = (blockDur: number) => {
+        while (true) {
+            const overlapping = sortedEvents.find(ev => 
+                !processedEvents.has(ev.id) &&
+                ((t >= ev.startMins && t < ev.endMins) || 
+                 (t + blockDur > ev.startMins && t <= ev.startMins))
+            );
+
+            if (!overlapping) break;
+
+            scheduled.push({
+                id: `google-${overlapping.id}`,
+                type: "google-calendar",
+                label: overlapping.title,
+                start: overlapping.startMins,
+                end: overlapping.endMins,
+                dur: overlapping.endMins - overlapping.startMins,
+                virtual: true,
+                source: "google",
+                color: overlapping.color,
+                originalEvent: overlapping
+            });
+            processedEvents.add(overlapping.id);
+
+            t = Math.max(t, overlapping.endMins);
+        }
+    };
 
     for (const block of day.blocks) {
         if (!block.on) {
@@ -65,6 +97,7 @@ export function computeSchedule(day: DayData) {
             t += day.commuteMins;
 
             if (block.actualStart != null) t = Math.max(t, block.actualStart);
+            pushPastGoogleEvents(block.dur);
 
             scheduled.push({
                 ...block,
@@ -85,6 +118,7 @@ export function computeSchedule(day: DayData) {
             t += day.commuteMins + 15;
         } else {
             if (block.actualStart != null) t = Math.max(t, block.actualStart);
+            pushPastGoogleEvents(block.dur);
 
             // Check if 10 DM aim routine is placed before work
             if (block.type === "aim" && t < day.workStart && isWorkday) {
@@ -99,6 +133,28 @@ export function computeSchedule(day: DayData) {
             t += block.dur;
         }
     }
+
+    // Push any remaining Google events that happen after all planner blocks
+    for (const ev of sortedEvents) {
+        if (!processedEvents.has(ev.id)) {
+            scheduled.push({
+                id: `google-${ev.id}`,
+                type: "google-calendar",
+                label: ev.title,
+                start: ev.startMins,
+                end: ev.endMins,
+                dur: ev.endMins - ev.startMins,
+                virtual: true,
+                source: "google",
+                color: ev.color,
+                originalEvent: ev
+            });
+            processedEvents.add(ev.id);
+        }
+    }
+
+    // Sort scheduled array by start time to ensure perfect chronological order
+    scheduled.sort((a, b) => a.start - b.start);
 
     // Identify gaps between scheduled items if any logic leaves a gap (not likely with sequential, but let's be robust)
     const scheduledWithGaps = [];

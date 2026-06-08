@@ -34,27 +34,10 @@ export default function Timeline() {
 
     if (!day) return null;
 
-    const { scheduled, warnings, nowBlockIndex, nowProgress } = computeSchedule(day);
-
     const isToday = selectedDay === new Date().toLocaleDateString("en-US", { weekday: "short" }).toLowerCase();
     const todaysEvents = isToday ? calendarEvents : [];
 
-    const combinedItems = [
-        ...scheduled.map((b: any, i: number) => ({ ...b, originalIndex: i })),
-        ...todaysEvents.map((ev, i) => ({
-            id: `google-${ev.id}-${i}`,
-            type: 'google-calendar',
-            start: ev.startMins,
-            end: ev.endMins,
-            dur: ev.endMins - ev.startMins,
-            label: ev.title,
-            virtual: true,
-            source: 'google',
-            color: ev.color,
-            allDay: ev.allDay,
-            originalIndex: -1
-        }))
-    ].sort((a, b) => a.start - b.start);
+    const { scheduled, warnings, nowBlockIndex, nowProgress } = computeSchedule(day, todaysEvents);
 
     const onDragEnd = (result: DropResult) => {
         const { source, destination, draggableId } = result;
@@ -137,16 +120,16 @@ export default function Timeline() {
                             >
                                 {(() => {
                                     let draggableIndex = 0;
-                                    return combinedItems.map((block: any, index: number) => {
+                                    return scheduled.map((block: any, index: number) => {
                                         const isVirtual = !!block.virtual;
                                         const isGap = block.type === "free" && isVirtual && block.source !== "google";
                                         const isGoogle = block.source === "google";
-                                        const isActive = block.originalIndex === nowBlockIndex;
+                                        const isActive = index === nowBlockIndex;
 
                                         // Render Gap
                                         if (isGap) {
                                             // Check if this gap is caused by the next block having an actualStart
-                                            const nextBlock = combinedItems.find((b: any, i: number) => i > index && !b.virtual);
+                                            const nextBlock = scheduled.find((b: any, i: number) => i > index && !b.virtual);
                                             const causedByManualBuffer = nextBlock && nextBlock.actualStart != null;
                                             
                                             return (
@@ -195,13 +178,19 @@ export default function Timeline() {
 
                                                 {/* Left Timeline Time - Editable Start Time */}
                                                 <div className="w-20 flex flex-col items-end pt-5 text-sm font-bold text-zinc-500 tracking-wider relative group/time">
-                                                    {!isVirtual ? (
+                                                    {!isVirtual || isGoogle ? (
                                                         <input 
                                                             type="time" 
                                                             value={minsToTimeStr(block.start)}
                                                             onChange={(e) => {
                                                                 const mins = timeStrToMins(e.target.value);
-                                                                updateBlock(selectedDay, block.id, { actualStart: mins });
+                                                                if (mins !== null) {
+                                                                    if (isGoogle) {
+                                                                        useScheduleStore.getState().syncCalendarEventUpdate(block.originalEvent.id, { startMins: mins, endMins: mins + block.dur });
+                                                                    } else {
+                                                                        updateBlock(selectedDay, block.id, { actualStart: mins });
+                                                                    }
+                                                                }
                                                             }}
                                                             className={`w-full bg-transparent text-right border-none p-0 focus:outline-none focus:ring-0 ${isActive ? "text-white" : "text-zinc-500"} hover:text-white cursor-pointer hover:border-b hover:border-dashed hover:border-zinc-500 transition-all`}
                                                             title="Edit start time"
@@ -214,14 +203,14 @@ export default function Timeline() {
 
                                                 {/* Block Card */}
                                                 <div 
-                                                    onClick={() => { if (!isVirtual) setFocusBlock(focusBlockId === block.id ? null : block.id); }}
-                                                    className={`flex-1 rounded-2xl border p-4 transition-all duration-300 group relative overflow-hidden backdrop-blur-md ${!isVirtual ? 'cursor-pointer' : ''}
+                                                    onClick={() => { if (!isVirtual || isGoogle) setFocusBlock(focusBlockId === block.id ? null : block.id); }}
+                                                    className={`flex-1 rounded-2xl border p-4 transition-all duration-300 group relative overflow-hidden backdrop-blur-md ${(!isVirtual || isGoogle) ? 'cursor-pointer' : ''}
                                                         ${isVirtual && !isGoogle ? 'border-zinc-900 bg-zinc-900/10' : ''}
                                                         ${isGoogle ? 'border-zinc-800/80 shadow-lg' : ''}
                                                         ${!isVirtual ? 'border-zinc-800/50 hover:border-zinc-600/50' : ''}
                                                         ${isActive && !isVirtual ? 'shadow-[0_0_30px_rgba(255,255,255,0.05)] border-zinc-700' : ''}
                                                         ${isDragging ? 'border-zinc-500 shadow-[0_0_40px_rgba(0,0,0,0.5)]' : ''}
-                                                        ${!isVirtual && focusBlockId === block.id ? 'ring-1 ring-indigo-500/60 border-indigo-500/40 shadow-[0_0_20px_rgba(99,102,241,0.15)]' : ''}
+                                                        ${(!isVirtual || isGoogle) && focusBlockId === block.id ? 'ring-1 ring-indigo-500/60 border-indigo-500/40 shadow-[0_0_20px_rgba(99,102,241,0.15)]' : ''}
                                                     `}
                                                     style={isGoogle ? {
                                                         background: `linear-gradient(135deg, ${block.color}15 0%, #050505 100%)`,
@@ -280,7 +269,7 @@ export default function Timeline() {
                                                     </div>
 
                                                     <div className="flex items-center gap-4 text-right shrink-0">
-                                                            {!isVirtual ? (
+                                                            {!isVirtual || isGoogle ? (
                                                                 <div className="flex items-center group/dur">
                                                                     <input
                                                                         type="number"
@@ -288,7 +277,11 @@ export default function Timeline() {
                                                                         onBlur={(e) => {
                                                                             const val = Number(e.target.value);
                                                                             if (val > 0 && val !== block.dur) {
-                                                                                updateBlock(selectedDay, block.id, { dur: val });
+                                                                                if (isGoogle) {
+                                                                                    useScheduleStore.getState().syncCalendarEventUpdate(block.originalEvent.id, { endMins: block.start + val });
+                                                                                } else {
+                                                                                    updateBlock(selectedDay, block.id, { dur: val });
+                                                                                }
                                                                             } else if (val <= 0) {
                                                                                 e.target.value = block.dur.toString();
                                                                             }

@@ -1,7 +1,7 @@
 // Google Calendar integration service
 // Uses Google Identity Services (GIS) for OAuth and Calendar REST API
 
-const SCOPES = "https://www.googleapis.com/auth/calendar.readonly";
+const SCOPES = "https://www.googleapis.com/auth/calendar.events";
 
 const CLIENT_ID = "166273735409-jq79q5ehpt72nn9n4o3qgli34c1hrdq8.apps.googleusercontent.com";
 
@@ -13,6 +13,8 @@ export interface CalendarEvent {
     color: string;
     allDay: boolean;
     source: "google";
+    originalStart: string | null;
+    originalEnd: string | null;
 }
 
 let tokenClient: any = null;
@@ -111,10 +113,46 @@ export async function fetchTodayEvents(token: string): Promise<CalendarEvent[]> 
             color: item.colorId ? getGoogleColor(item.colorId) : "#4285f4",
             allDay: isAllDay,
             source: "google",
+            originalStart: isAllDay ? item.start.date : item.start.dateTime,
+            originalEnd: isAllDay ? item.end.date : item.end.dateTime,
         });
     }
 
     return events;
+}
+
+/**
+ * Update an existing event in Google Calendar.
+ */
+export async function updateGoogleEvent(
+    token: string,
+    eventId: string,
+    updates: { start?: string; end?: string; summary?: string }
+) {
+    // We use PATCH to only update the provided fields
+    const body: any = {};
+    if (updates.start) body.start = { dateTime: updates.start };
+    if (updates.end) body.end = { dateTime: updates.end };
+    if (updates.summary) body.summary = updates.summary;
+
+    const res = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}`,
+        {
+            method: "PATCH",
+            headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(body),
+        }
+    );
+
+    if (!res.ok) {
+        if (res.status === 401) throw new Error("TOKEN_EXPIRED");
+        throw new Error(`Calendar API update error: ${res.status}`);
+    }
+
+    return await res.json();
 }
 
 /**

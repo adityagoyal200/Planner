@@ -3,7 +3,7 @@ import { persist } from "zustand/middleware";
 import { nanoid } from "nanoid";
 import type { Block } from "../types/block";
 import type { DayData } from "../types/schedule";
-import type { CalendarEvent } from "../services/googleCalendar";
+import { type CalendarEvent, updateGoogleEvent } from "../services/googleCalendar";
 import {
     createMonday,
     createTuesday,
@@ -58,6 +58,8 @@ interface ScheduleStore {
     setGoogleToken: (token: string | null) => void;
     setCalendarEvents: (events: CalendarEvent[]) => void;
     clearGoogle: () => void;
+    updateCalendarEventLocal: (eventId: string, updates: Partial<CalendarEvent>) => void;
+    syncCalendarEventUpdate: (eventId: string, updates: Partial<CalendarEvent>) => Promise<void>;
 }
 
 export const useScheduleStore = create<ScheduleStore>()(
@@ -235,6 +237,50 @@ export const useScheduleStore = create<ScheduleStore>()(
             setGoogleToken: (token) => set({ googleToken: token }),
             setCalendarEvents: (events) => set({ calendarEvents: events }),
             clearGoogle: () => set({ googleToken: null, calendarEvents: [] }),
+
+            updateCalendarEventLocal: (eventId, updates) =>
+                set((state) => ({
+                    calendarEvents: state.calendarEvents.map((ev) =>
+                        ev.id === eventId ? { ...ev, ...updates } : ev
+                    ),
+                })),
+
+            syncCalendarEventUpdate: async (eventId, updates) => {
+                const state = set; // zustand's get/set closure context
+                // Optimistically update local
+                useScheduleStore.getState().updateCalendarEventLocal(eventId, updates);
+
+                const token = useScheduleStore.getState().googleToken;
+                if (!token) return;
+
+                const ev = useScheduleStore.getState().calendarEvents.find(e => e.id === eventId);
+                if (!ev || !ev.originalStart || !ev.originalEnd) return;
+
+                try {
+                    const apiUpdates: any = {};
+                    if (updates.startMins !== undefined) {
+                        const d = new Date(ev.originalStart);
+                        d.setHours(Math.floor(updates.startMins / 60), updates.startMins % 60, 0, 0);
+                        apiUpdates.start = d.toISOString();
+                    }
+                    if (updates.endMins !== undefined) {
+                        const d = new Date(ev.originalEnd);
+                        d.setHours(Math.floor(updates.endMins / 60), updates.endMins % 60, 0, 0);
+                        apiUpdates.end = d.toISOString();
+                    }
+                    if (updates.title !== undefined) {
+                        apiUpdates.summary = updates.title;
+                    }
+
+                    await updateGoogleEvent(token, eventId, apiUpdates);
+                    
+                    // We could refetch today's events here to be perfectly in sync,
+                    // but the optimistic update is usually enough.
+                } catch (err) {
+                    console.error("Failed to sync event update", err);
+                    // Could revert optimistic update here if desired
+                }
+            },
         }),
         {
             name: "planner-storage",
