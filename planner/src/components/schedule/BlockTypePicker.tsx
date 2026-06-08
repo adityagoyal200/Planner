@@ -1,14 +1,53 @@
+import { useState } from "react";
 import { Droppable, Draggable } from "@hello-pangea/dnd";
-import { BLOCK_META } from "../../constants/blockTypes";
-import type { BlockType } from "../../types/block";
+import { useScheduleStore } from "../../store/useScheduleStore";
+import { nanoid } from "nanoid";
 
 interface Props {
     onClose: () => void;
 }
 
+const PRESET_COLORS = [
+    "#0f0f0f", "#0b0818", "#060c18", "#070e07", "#09061c", 
+    "#040c07", "#100600", "#100800", "#110004", "#0c0200", 
+    "#0d0d0d", "#060611", "#080808", "#1a1025", "#142510"
+];
+
+const EMOJI_TABS = [
+    { name: "Activity", icon: "⚽", emojis: ["⚽","🏀","🏈","⚾","🎾","🏐","🏉","🎱","🏓","🏸","🥊","🏋","🤸","⛹","🤾","🏊","🚴","🧗","🤺","🏇","⛷","🏂","🪂","🏌","🧘","🛹","🛼","🎿","⛸","🎯","🎮","🕹","🎲","🧩","♟","🎳","🎰"] },
+    { name: "Objects", icon: "💼", emojis: ["💼","📁","📂","📝","📒","📕","📗","📘","📙","📓","📔","📚","📖","🔖","📎","📐","📏","✂️","🖊","✏️","🖍","🖌","📌","📍","🔑","🔒","💡","🔧","🔨","⚙️","🧰","🛠","⚒","🧲","🧪","🧫","🔬","🔭","📡","💊","🩺","🧬"] },
+    { name: "Food", icon: "🍕", emojis: ["🍕","🍔","🍟","🌭","🌮","🌯","🥗","🥘","🍝","🍜","🍲","🍛","🍣","🍱","🥟","🍳","🥞","🧇","🥐","🍞","🥖","🧀","🥩","🍗","🍖","🥓","🍤","🥚","🥣","🥤","☕","🍵","🧃","🍺","🍷","🥤","🧊","🍰","🎂","🧁","🍩","🍪"] },
+    { name: "Faces", icon: "😊", emojis: ["😊","😄","😁","🤣","😂","🙂","😉","😍","🥰","😘","😎","🤓","🧐","🤔","🤗","😤","😠","😈","👿","💀","👻","👽","🤖","💩","😺","😸","😻","🙀","😿","👋","✌️","🤞","🤟","🤘","👍","👏","🙏","💪","🦾","🧠","👀","👁"] },
+    { name: "Nature", icon: "🌿", emojis: ["🌿","🍀","🌱","🌲","🌳","🌴","🌵","🌾","🌻","🌺","🌹","🌷","🌸","💐","🍄","🐶","🐱","🐭","🐹","🐰","🦊","🐻","🐼","🐨","🐯","🦁","🐮","🐷","🐸","🐵","🦄","🐝","🦋","🐌","🐞","🐢","🦎","🐍","🐠","🐬","🦈","🐳"] },
+    { name: "Travel", icon: "✈️", emojis: ["✈️","🚀","🛸","🚁","⛵","🚢","🚂","🚃","🚄","🚅","🚆","🚇","🚈","🚉","🚊","🚋","🚌","🚍","🚎","🚐","🚑","🚒","🚓","🚔","🚕","🚖","🚗","🚘","🚙","🛻","🚚","🛵","🏍","🚲","🛴","🏠","🏡","🏢","🏣","🏥","🏦","🏰"] },
+    { name: "Symbols", icon: "⭐", emojis: ["⭐","🌟","✨","💫","⚡","🔥","💥","❤️","🧡","💛","💚","💙","💜","🖤","🤍","💯","✅","❌","⭕","❗","❓","💤","💬","💭","🔔","🔕","🎵","🎶","🏆","🥇","🥈","🥉","🎖","🏅","🎗","⬜","⬛","◻️","◼️","▶️","⏸","⏯"] },
+];
+
 export default function BlockTypePicker({ onClose }: Props) {
+    const { categories, addCategory } = useScheduleStore();
+    const [isAdding, setIsAdding] = useState(false);
+    const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+    const [emojiTab, setEmojiTab] = useState("Activity");
+    
+    // New Category Form State
+    const [newName, setNewName] = useState("");
+    const [newEmoji, setNewEmoji] = useState("✨");
+    const [newColor, setNewColor] = useState(PRESET_COLORS[0]);
+
+    const handleAdd = () => {
+        if (!newName.trim()) return;
+        addCategory({
+            id: nanoid(6).toLowerCase(), // e.g. "gaming"
+            name: newName.trim(),
+            emoji: newEmoji,
+            bg: newColor
+        });
+        setIsAdding(false);
+        setNewName("");
+    };
+
     return (
-        <div className="absolute top-full right-0 mt-2 z-50 p-4 rounded-2xl border border-zinc-800 bg-[#0a0a0a] shadow-2xl backdrop-blur-xl w-[280px] origin-top-right animate-in fade-in zoom-in duration-200">
+        <div className="absolute top-full right-0 mt-2 z-50 p-4 rounded-2xl border border-zinc-800 bg-[#0a0a0a] shadow-2xl backdrop-blur-xl w-[320px] origin-top-right animate-in fade-in zoom-in duration-200">
             <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent rounded-2xl pointer-events-none" />
             <div className="flex items-center justify-between mb-3 relative z-10">
                 <h3 className="text-sm font-bold text-zinc-300">Drag to Timeline</h3>
@@ -20,12 +59,12 @@ export default function BlockTypePicker({ onClose }: Props) {
             <Droppable droppableId="palette" isDropDisabled={true} direction="horizontal">
                 {(provided) => (
                     <div 
-                        className="grid grid-cols-4 gap-2 relative z-10"
+                        className="grid grid-cols-4 gap-2 relative z-10 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar"
                         ref={provided.innerRef}
                         {...provided.droppableProps}
                     >
-                        {(Object.entries(BLOCK_META) as [BlockType, typeof BLOCK_META[BlockType]][]).map(([type, meta], index) => (
-                            <Draggable key={`palette-${type}`} draggableId={`palette-${type}`} index={index}>
+                        {categories.map((cat, index) => (
+                            <Draggable key={`palette-${cat.id}`} draggableId={`palette-${cat.id}`} index={index}>
                                 {(provided, snapshot) => (
                                     <>
                                         <div
@@ -33,17 +72,17 @@ export default function BlockTypePicker({ onClose }: Props) {
                                             {...provided.draggableProps}
                                             {...provided.dragHandleProps}
                                             className={`flex flex-col items-center justify-center p-2 rounded-xl transition-all duration-200 hover:bg-zinc-800 border border-transparent hover:border-zinc-700 bg-[#0a0a0a] ${snapshot.isDragging ? 'shadow-2xl z-50 scale-110 border-zinc-500' : ''}`}
-                                            title={type}
+                                            title={cat.name}
                                         >
-                                            <span className="text-2xl mb-1 drop-shadow-md pointer-events-none">{meta.emoji}</span>
-                                            <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider pointer-events-none">
-                                                {type}
+                                            <span className="text-2xl mb-1 drop-shadow-md pointer-events-none">{cat.emoji}</span>
+                                            <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider pointer-events-none truncate w-full text-center">
+                                                {cat.name}
                                             </span>
                                         </div>
                                         {snapshot.isDragging && (
                                             <div className="flex flex-col items-center justify-center p-2 rounded-xl border border-dashed border-zinc-700 opacity-50">
-                                                <span className="text-2xl mb-1">{meta.emoji}</span>
-                                                <span className="text-[10px] uppercase font-bold text-zinc-500">{type}</span>
+                                                <span className="text-2xl mb-1">{cat.emoji}</span>
+                                                <span className="text-[10px] uppercase font-bold text-zinc-500 truncate w-full text-center">{cat.name}</span>
                                             </div>
                                         )}
                                     </>
@@ -51,9 +90,97 @@ export default function BlockTypePicker({ onClose }: Props) {
                             </Draggable>
                         ))}
                         {provided.placeholder}
+                        
+                        {/* Add Button */}
+                        {!isAdding && (
+                            <div 
+                                onClick={() => setIsAdding(true)}
+                                className="flex flex-col items-center justify-center p-2 rounded-xl border border-dashed border-zinc-800 hover:border-zinc-500 hover:bg-zinc-900 cursor-pointer transition-colors"
+                            >
+                                <span className="text-2xl mb-1 text-zinc-600">+</span>
+                                <span className="text-[10px] uppercase font-bold text-zinc-600">New</span>
+                            </div>
+                        )}
                     </div>
                 )}
             </Droppable>
+
+            {/* Add Category Form */}
+            {isAdding && (
+                <div className="mt-4 pt-4 border-t border-zinc-800/50 relative z-10 animate-in fade-in slide-in-from-top-2">
+                    <div className="flex gap-2 mb-3">
+                        <div className="flex-1">
+                            <input 
+                                type="text" 
+                                placeholder="Category Name" 
+                                value={newName}
+                                onChange={e => setNewName(e.target.value)}
+                                className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-600"
+                                autoFocus
+                            />
+                        </div>
+                        <button 
+                            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                            className={`w-12 h-10 flex items-center justify-center bg-zinc-900 border rounded-lg text-xl transition-all hover:bg-zinc-800 ${showEmojiPicker ? 'border-zinc-500 bg-zinc-800' : 'border-zinc-800'}`}
+                        >
+                            {newEmoji}
+                        </button>
+                    </div>
+
+                    {showEmojiPicker && (
+                        <div className="mb-3 bg-zinc-900/80 border border-zinc-800 rounded-xl p-2 animate-in fade-in slide-in-from-top-1">
+                            <div className="flex gap-1 mb-2 overflow-x-auto pb-1">
+                                {EMOJI_TABS.map(tab => (
+                                    <button
+                                        key={tab.name}
+                                        onClick={() => setEmojiTab(tab.name)}
+                                        className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider whitespace-nowrap transition-colors ${emojiTab === tab.name ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+                                    >
+                                        {tab.icon} {tab.name}
+                                    </button>
+                                ))}
+                            </div>
+                            <div className="grid grid-cols-8 gap-0.5 max-h-[140px] overflow-y-auto custom-scrollbar">
+                                {(EMOJI_TABS.find(t => t.name === emojiTab)?.emojis || []).map(emoji => (
+                                    <button 
+                                        key={emoji}
+                                        onClick={() => { setNewEmoji(emoji); setShowEmojiPicker(false); }}
+                                        className="w-8 h-8 flex items-center justify-center rounded-lg text-lg hover:bg-zinc-700 transition-colors"
+                                    >
+                                        {emoji}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                    
+                    <div className="flex flex-wrap gap-1.5 mb-4">
+                        {PRESET_COLORS.map(color => (
+                            <button
+                                key={color}
+                                onClick={() => setNewColor(color)}
+                                className={`w-5 h-5 rounded-full border-2 transition-all ${newColor === color ? 'border-zinc-400 scale-110' : 'border-transparent hover:scale-110'}`}
+                                style={{ backgroundColor: color }}
+                            />
+                        ))}
+                    </div>
+
+                    <div className="flex gap-2">
+                        <button 
+                            onClick={() => setIsAdding(false)}
+                            className="flex-1 py-2 rounded-lg text-xs font-bold text-zinc-500 hover:bg-zinc-900 transition-colors"
+                        >
+                            Cancel
+                        </button>
+                        <button 
+                            onClick={handleAdd}
+                            className="flex-1 py-2 rounded-lg text-xs font-bold bg-white text-black hover:bg-zinc-200 transition-colors"
+                        >
+                            Create
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

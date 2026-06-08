@@ -1,21 +1,15 @@
-export type BlockType =
-    | "routine"
-    | "travel"
-    | "swim"
-    | "gym"
-    | "dsa"
-    | "north"
-    | "cook"
-    | "family"
-    | "aim"
-    | "val"
-    | "work"
-    | "nap"
-    | "free";
+export interface BlockCategory {
+    id: string;
+    name: string;
+    emoji: string;
+    bg: string;
+}
+
+export type BlockType = string;
 
 export interface Block {
     id: string;
-    type: BlockType;
+    type: BlockType; 
     label: string;
     dur: number;
     on: boolean;

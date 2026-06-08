@@ -4,7 +4,6 @@ import { AlertCircle, Trash2, Clock, Plus, GripVertical } from "lucide-react";
 import { computeSchedule } from "../../engine/computeSchedule";
 import { useScheduleStore } from "../../store/useScheduleStore";
 import { formatTime } from "../../utils/formatTime";
-import { BLOCK_META } from "../../constants/blockTypes";
 import BlockTypePicker from "./BlockTypePicker";
 import type { BlockType } from "../../types/block";
 
@@ -21,7 +20,7 @@ function timeStrToMins(timeStr: string) {
 }
 
 export default function Timeline() {
-    const { week, selectedDay, updateBlock, removeBlock, reorderBlocks, insertBlock, setFocusBlock, focusBlockId, calendarEvents } = useScheduleStore();
+    const { week, selectedDay, updateBlock, removeBlock, reorderBlocks, insertBlock, setFocusBlock, focusBlockId, calendarEvents, categories } = useScheduleStore();
     const day = week[selectedDay];
     const [showPicker, setShowPicker] = useState(false);
     const [, setTick] = useState(0);
@@ -126,9 +125,7 @@ export default function Timeline() {
                                         const isGoogle = block.source === "google";
                                         const isActive = index === nowBlockIndex;
 
-                                        // Render Gap
                                         if (isGap) {
-                                            // Check if this gap is caused by the next block having an actualStart
                                             const nextBlock = scheduled.find((b: any, i: number) => i > index && !b.virtual);
                                             const causedByManualBuffer = nextBlock && (nextBlock as any).actualStart != null;
                                             
@@ -156,7 +153,6 @@ export default function Timeline() {
                                             );
                                         }
 
-                                        // Render Active "Now" Indicator Line
                                         const renderNowLine = isActive && (
                                             <div className="absolute left-0 right-0 z-50 pointer-events-none" style={{ top: `${nowProgress * 100}%` }}>
                                                 <div className="flex items-center">
@@ -171,7 +167,6 @@ export default function Timeline() {
                                             </div>
                                         );
 
-                                        // Render block content
                                         const renderBlockContent = (isDragging = false) => (
                                             <div className={`flex items-stretch gap-6 relative ${isVirtual ? 'opacity-60' : (block.on === false ? 'opacity-40' : '')} ${isDragging ? 'shadow-2xl scale-105 z-50' : ''}`}>
                                                 {renderNowLine}
@@ -217,7 +212,7 @@ export default function Timeline() {
                                                         borderColor: `${block.color}30`
                                                     } : (!isVirtual ? {
                                                         background: `linear-gradient(135deg, ${
-                                                            BLOCK_META[block.type as keyof typeof BLOCK_META]?.bg || "#111"
+                                                            categories.find(c => c.id === block.type)?.bg || "#111"
                                                         } 0%, #050505 100%)`,
                                                     } : {})}
                                                 >
@@ -244,7 +239,7 @@ export default function Timeline() {
                                                                         </svg>
                                                                     </div>
                                                                 ) : (
-                                                                    BLOCK_META[block.type as keyof typeof BLOCK_META]?.emoji || "⚡"
+                                                                    categories.find(c => c.id === block.type)?.emoji || "⚡"
                                                                 )}
                                                             </div>
                                                             <div className="flex-1">

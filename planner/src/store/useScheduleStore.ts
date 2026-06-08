@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { nanoid } from "nanoid";
-import type { Block } from "../types/block";
+import type { Block, BlockCategory } from "../types/block";
 import type { DayData } from "../types/schedule";
 import { type CalendarEvent, updateGoogleEvent } from "../services/googleCalendar";
 import {
@@ -14,11 +14,28 @@ import {
     createSunday,
 } from "../data/defaultWeek";
 
+// Generic SaaS defaults
+const DEFAULT_CATEGORIES: BlockCategory[] = [
+    { id: "routine", name: "Routine", emoji: "⬜", bg: "#0f0f0f" },
+    { id: "travel", name: "Travel", emoji: "🛵", bg: "#0b0818" },
+    { id: "work", name: "Deep Work", emoji: "💼", bg: "#0d0d0d" },
+    { id: "study", name: "Learning", emoji: "💻", bg: "#09061c" },
+    { id: "gaming", name: "Gaming", emoji: "🎮", bg: "#0c0200" },
+    { id: "health", name: "Exercise", emoji: "🏋", bg: "#070e07" },
+    { id: "family", name: "Family", emoji: "📞", bg: "#100800" },
+    { id: "hobby", name: "Hobby", emoji: "🎯", bg: "#110004" },
+    { id: "sleep", name: "Sleep", emoji: "🛌", bg: "#060611" },
+    { id: "free", name: "Free Time", emoji: "☁️", bg: "#080808" }
+];
+
 export type DayKey = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
 
 interface ScheduleStore {
     selectedDay: DayKey;
     week: Record<DayKey, DayData>;
+
+    // Custom block categories
+    categories: BlockCategory[];
 
     // Quick notes (persisted)
     quickNotes: string;
@@ -61,6 +78,11 @@ interface ScheduleStore {
     updateCalendarEventLocal: (eventId: string, updates: Partial<CalendarEvent>) => void;
     syncCalendarEventUpdate: (eventId: string, updates: Partial<CalendarEvent>) => Promise<void>;
 
+    // Category actions
+    addCategory: (category: BlockCategory) => void;
+    updateCategory: (id: string, updates: Partial<BlockCategory>) => void;
+    removeCategory: (id: string) => void;
+
     resetStore: () => void;
 }
 
@@ -68,6 +90,7 @@ export const useScheduleStore = create<ScheduleStore>()(
     persist(
         (set) => ({
             selectedDay: "mon",
+            categories: DEFAULT_CATEGORIES,
             quickNotes: "",
             streak: 0,
             lastCompletedDate: null,
@@ -282,8 +305,24 @@ export const useScheduleStore = create<ScheduleStore>()(
                 }
             },
 
+            addCategory: (category) =>
+                set((state) => ({ categories: [...state.categories, category] })),
+            
+            updateCategory: (id, updates) =>
+                set((state) => ({
+                    categories: state.categories.map((c) =>
+                        c.id === id ? { ...c, ...updates } : c
+                    ),
+                })),
+                
+            removeCategory: (id) =>
+                set((state) => ({
+                    categories: state.categories.filter((c) => c.id !== id),
+                })),
+
             resetStore: () => set({
                 selectedDay: "mon",
+                categories: DEFAULT_CATEGORIES,
                 quickNotes: "",
                 streak: 0,
                 lastCompletedDate: null,
@@ -320,6 +359,7 @@ function getCloudPayload() {
     const s = useScheduleStore.getState();
     return {
         week: s.week,
+        categories: s.categories,
         quickNotes: s.quickNotes,
         streak: s.streak,
         lastCompletedDate: s.lastCompletedDate,
@@ -347,6 +387,7 @@ export async function hydrateFromCloud(userId: string) {
 
     useScheduleStore.setState({
         week: cloud.week,
+        categories: cloud.categories && cloud.categories.length > 0 ? cloud.categories : DEFAULT_CATEGORIES,
         quickNotes: cloud.quickNotes ?? "",
         streak: cloud.streak ?? 0,
         lastCompletedDate: cloud.lastCompletedDate ?? null,
