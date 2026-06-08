@@ -15,7 +15,7 @@ const days = [
     { id: "sun", label: "S" },
 ] as const;
 
-export default function Sidebar() {
+export default function Sidebar({ onClose }: { onClose?: () => void }) {
     const { selectedDay, setSelectedDay, week, quickNotes, updateQuickNotes, streak } = useScheduleStore();
     const day = week[selectedDay];
     
@@ -23,7 +23,7 @@ export default function Sidebar() {
     const quote = getQuoteOfTheDay();
 
     return (
-        <div className="w-80 border-r border-zinc-900 bg-[#030303] p-5 flex flex-col relative z-10 overflow-y-auto">
+        <div className="w-80 h-full border-r border-zinc-900 bg-[#030303] p-5 flex flex-col relative z-10 overflow-y-auto">
             <div className="flex items-center justify-between mb-8">
                 <div>
                     <div className="text-3xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-br from-white to-zinc-500">
@@ -33,6 +33,13 @@ export default function Sidebar() {
                         Personal OS
                     </div>
                 </div>
+                {onClose && (
+                    <button onClick={onClose} className="p-2 -mr-2 text-zinc-500 hover:text-white lg:hidden">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                )}
             </div>
 
             {/* Day Picker Compact */}
