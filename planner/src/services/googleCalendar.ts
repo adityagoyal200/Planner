@@ -2,7 +2,6 @@
 // Uses Google Identity Services (GIS) for OAuth and Calendar REST API
 
 const SCOPES = "https://www.googleapis.com/auth/calendar.readonly";
-const DISCOVERY_DOC = "https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest";
 
 const CLIENT_ID = "166273735409-jq79q5ehpt72nn9n4o3qgli34c1hrdq8.apps.googleusercontent.com";
 

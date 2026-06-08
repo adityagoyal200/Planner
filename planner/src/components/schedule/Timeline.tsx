@@ -36,7 +36,7 @@ export default function Timeline() {
 
     const { scheduled, warnings, nowBlockIndex, nowProgress } = computeSchedule(day);
 
-    const isToday = day.id === new Date().toLocaleDateString("en-US", { weekday: "short" }).toLowerCase();
+    const isToday = selectedDay === new Date().toLocaleDateString("en-US", { weekday: "short" }).toLowerCase();
     const todaysEvents = isToday ? calendarEvents : [];
 
     const combinedItems = [

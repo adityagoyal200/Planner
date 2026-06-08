@@ -1,6 +1,5 @@
 import { useScheduleStore } from "../../store/useScheduleStore";
 import { computeSchedule } from "../../engine/computeSchedule";
-import { formatTime } from "../../utils/formatTime";
 
 function minsToTimeStr(mins: number) {
     const h = Math.floor(mins / 60) % 24;
