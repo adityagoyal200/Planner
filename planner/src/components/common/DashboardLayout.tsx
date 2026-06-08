@@ -2,6 +2,7 @@ import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 import Timeline from "../schedule/Timeline";
 import SleepAnalysis from "../schedule/SleepAnalysis";
+import CalendarSync from "./CalendarSync";
 import SettingsPanel from "../settings/SettingsPanel";
 import WeeklyAnalysis from "../analytics/WeeklyAnalysis";
 
@@ -18,6 +19,7 @@ export default function DashboardLayout() {
                         </div>
                         <div className="space-y-6">
                             <SleepAnalysis />
+                            <CalendarSync />
                             <WeeklyAnalysis />
                             <SettingsPanel />
                         </div>

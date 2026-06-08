@@ -21,7 +21,7 @@ function timeStrToMins(timeStr: string) {
 }
 
 export default function Timeline() {
-    const { week, selectedDay, updateBlock, removeBlock, reorderBlocks, insertBlock, setFocusBlock, focusBlockId } = useScheduleStore();
+    const { week, selectedDay, updateBlock, removeBlock, reorderBlocks, insertBlock, setFocusBlock, focusBlockId, calendarEvents } = useScheduleStore();
     const day = week[selectedDay];
     const [showPicker, setShowPicker] = useState(false);
     const [, setTick] = useState(0);
@@ -35,6 +35,26 @@ export default function Timeline() {
     if (!day) return null;
 
     const { scheduled, warnings, nowBlockIndex, nowProgress } = computeSchedule(day);
+
+    const isToday = day.id === new Date().toLocaleDateString("en-US", { weekday: "short" }).toLowerCase();
+    const todaysEvents = isToday ? calendarEvents : [];
+
+    const combinedItems = [
+        ...scheduled.map((b: any, i: number) => ({ ...b, originalIndex: i })),
+        ...todaysEvents.map((ev, i) => ({
+            id: `google-${ev.id}-${i}`,
+            type: 'google-calendar',
+            start: ev.startMins,
+            end: ev.endMins,
+            dur: ev.endMins - ev.startMins,
+            label: ev.title,
+            virtual: true,
+            source: 'google',
+            color: ev.color,
+            allDay: ev.allDay,
+            originalIndex: -1
+        }))
+    ].sort((a, b) => a.start - b.start);
 
     const onDragEnd = (result: DropResult) => {
         const { source, destination, draggableId } = result;
@@ -117,16 +137,17 @@ export default function Timeline() {
                             >
                                 {(() => {
                                     let draggableIndex = 0;
-                                    return scheduled.map((block: any, index: number) => {
+                                    return combinedItems.map((block: any, index: number) => {
                                         const isVirtual = !!block.virtual;
-                                        const isGap = block.type === "free" && isVirtual;
-                                        const isActive = index === nowBlockIndex;
+                                        const isGap = block.type === "free" && isVirtual && block.source !== "google";
+                                        const isGoogle = block.source === "google";
+                                        const isActive = block.originalIndex === nowBlockIndex;
 
                                         // Render Gap
                                         if (isGap) {
                                             // Check if this gap is caused by the next block having an actualStart
-                                            const nextBlock = scheduled[index + 1];
-                                            const causedByManualBuffer = nextBlock && !nextBlock.virtual && nextBlock.actualStart != null;
+                                            const nextBlock = combinedItems.find((b: any, i: number) => i > index && !b.virtual);
+                                            const causedByManualBuffer = nextBlock && nextBlock.actualStart != null;
                                             
                                             return (
                                                 <div key={`gap-${index}`} className="flex items-center gap-6 py-2 group/gap">
@@ -194,17 +215,22 @@ export default function Timeline() {
                                                 {/* Block Card */}
                                                 <div 
                                                     onClick={() => { if (!isVirtual) setFocusBlock(focusBlockId === block.id ? null : block.id); }}
-                                                    className={`flex-1 rounded-2xl border p-4 transition-all duration-300 group relative overflow-hidden backdrop-blur-md cursor-pointer
-                                                        ${isVirtual ? 'border-zinc-900 bg-zinc-900/10' : 'border-zinc-800/50 hover:border-zinc-600/50'}
+                                                    className={`flex-1 rounded-2xl border p-4 transition-all duration-300 group relative overflow-hidden backdrop-blur-md ${!isVirtual ? 'cursor-pointer' : ''}
+                                                        ${isVirtual && !isGoogle ? 'border-zinc-900 bg-zinc-900/10' : ''}
+                                                        ${isGoogle ? 'border-zinc-800/80 shadow-lg' : ''}
+                                                        ${!isVirtual ? 'border-zinc-800/50 hover:border-zinc-600/50' : ''}
                                                         ${isActive && !isVirtual ? 'shadow-[0_0_30px_rgba(255,255,255,0.05)] border-zinc-700' : ''}
                                                         ${isDragging ? 'border-zinc-500 shadow-[0_0_40px_rgba(0,0,0,0.5)]' : ''}
                                                         ${!isVirtual && focusBlockId === block.id ? 'ring-1 ring-indigo-500/60 border-indigo-500/40 shadow-[0_0_20px_rgba(99,102,241,0.15)]' : ''}
                                                     `}
-                                                    style={!isVirtual ? {
+                                                    style={isGoogle ? {
+                                                        background: `linear-gradient(135deg, ${block.color}15 0%, #050505 100%)`,
+                                                        borderColor: `${block.color}30`
+                                                    } : (!isVirtual ? {
                                                         background: `linear-gradient(135deg, ${
                                                             BLOCK_META[block.type as keyof typeof BLOCK_META]?.bg || "#111"
                                                         } 0%, #050505 100%)`,
-                                                    } : {}}
+                                                    } : {})}
                                                 >
                                                     {isActive && !isVirtual && (
                                                         <div 
@@ -215,30 +241,43 @@ export default function Timeline() {
 
                                                     <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-[0.02] transition-opacity duration-300 pointer-events-none" />
                                                     
-                                                    <div className="flex items-center justify-between relative z-10 gap-4">
-                                                        <div className="flex-1 flex items-center">
-                                                            <div className="flex items-center gap-4 flex-1">
-                                                                <div className="text-3xl drop-shadow-md shrink-0 pointer-events-none">
-                                                                    {BLOCK_META[block.type as keyof typeof BLOCK_META]?.emoji || "⚡"}
-                                                                </div>
-                                                                <div className="flex-1">
-                                                                    {!isVirtual ? (
-                                                                        <input
-                                                                            type="text"
-                                                                            defaultValue={block.label}
-                                                                            onBlur={(e) => {
-                                                                                if (e.target.value !== block.label) {
-                                                                                    updateBlock(selectedDay, block.id, { label: e.target.value });
-                                                                                }
-                                                                            }}
-                                                                            className={`w-full bg-transparent border-none px-0 py-1 font-bold text-xl tracking-tight focus:outline-none focus:ring-0 ${block.on === false ? 'text-zinc-600 line-through' : 'text-zinc-100 group-hover:text-white transition-colors'}`}
-                                                                        />
-                                                                    ) : (
-                                                                        <div className="font-bold text-xl tracking-tight text-zinc-300 px-0 py-1">
-                                                                            {block.label}
-                                                                        </div>
-                                                                    )}
-                                                                </div>
+                                                <div className="flex items-center justify-between relative z-10 gap-4">
+                                                    <div className="flex-1 flex items-center">
+                                                        <div className="flex items-center gap-4 flex-1">
+                                                            <div className="text-3xl drop-shadow-md shrink-0 pointer-events-none">
+                                                                {isGoogle ? (
+                                                                    <div className="w-8 h-8 rounded bg-zinc-900 flex items-center justify-center border" style={{ borderColor: `${block.color}50`, color: block.color }}>
+                                                                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                                                                            <line x1="16" y1="2" x2="16" y2="6" />
+                                                                            <line x1="8" y1="2" x2="8" y2="6" />
+                                                                            <line x1="3" y1="10" x2="21" y2="10" />
+                                                                        </svg>
+                                                                    </div>
+                                                                ) : (
+                                                                    BLOCK_META[block.type as keyof typeof BLOCK_META]?.emoji || "⚡"
+                                                                )}
+                                                            </div>
+                                                            <div className="flex-1">
+                                                                {!isVirtual ? (
+                                                                    <input
+                                                                        type="text"
+                                                                        defaultValue={block.label}
+                                                                        onBlur={(e) => {
+                                                                            if (e.target.value !== block.label) {
+                                                                                updateBlock(selectedDay, block.id, { label: e.target.value });
+                                                                            }
+                                                                        }}
+                                                                        className={`w-full bg-transparent border-none px-0 py-1 font-bold text-xl tracking-tight focus:outline-none focus:ring-0 ${block.on === false ? 'text-zinc-600 line-through' : 'text-zinc-100 group-hover:text-white transition-colors'}`}
+                                                                    />
+                                                                ) : (
+                                                                    <div className="font-bold text-xl tracking-tight text-zinc-300 px-0 py-1" style={isGoogle ? { color: block.color } : {}}>
+                                                                        {block.label}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div></div>
                                                             </div>
                                                         </div>
 
@@ -263,8 +302,8 @@ export default function Timeline() {
                                                                 </div>
                                                             ) : (
                                                                 <div className="text-2xl font-black tracking-tighter text-zinc-500">
-                                                                    {block.dur}
-                                                                    <span className="text-sm font-semibold text-zinc-700 ml-1">m</span>
+                                                                    {block.allDay ? "All Day" : block.dur}
+                                                                    {!block.allDay && <span className="text-sm font-semibold text-zinc-700 ml-1">m</span>}
                                                                 </div>
                                                             )}
 

@@ -3,6 +3,7 @@ import { persist } from "zustand/middleware";
 import { nanoid } from "nanoid";
 import type { Block } from "../types/block";
 import type { DayData } from "../types/schedule";
+import type { CalendarEvent } from "../services/googleCalendar";
 import {
     createMonday,
     createTuesday,
@@ -29,6 +30,10 @@ interface ScheduleStore {
     // Focus timer
     focusBlockId: string | null;
 
+    // Google Calendar
+    googleToken: string | null;
+    calendarEvents: CalendarEvent[];
+
     // Actions — Day
     setSelectedDay: (d: DayKey) => void;
     updateWakeTime: (day: DayKey, wakeTime: number) => void;
@@ -48,6 +53,11 @@ interface ScheduleStore {
     updateQuickNotes: (notes: string) => void;
     updateStreak: (completed: boolean) => void;
     setFocusBlock: (id: string | null) => void;
+
+    // Google Calendar actions
+    setGoogleToken: (token: string | null) => void;
+    setCalendarEvents: (events: CalendarEvent[]) => void;
+    clearGoogle: () => void;
 }
 
 export const useScheduleStore = create<ScheduleStore>()(
@@ -58,6 +68,8 @@ export const useScheduleStore = create<ScheduleStore>()(
             streak: 0,
             lastCompletedDate: null,
             focusBlockId: null,
+            googleToken: null,
+            calendarEvents: [],
 
             week: {
                 mon: createMonday(),
@@ -219,6 +231,10 @@ export const useScheduleStore = create<ScheduleStore>()(
                 }),
 
             setFocusBlock: (id) => set({ focusBlockId: id }),
+
+            setGoogleToken: (token) => set({ googleToken: token }),
+            setCalendarEvents: (events) => set({ calendarEvents: events }),
+            clearGoogle: () => set({ googleToken: null, calendarEvents: [] }),
         }),
         {
             name: "planner-storage",
