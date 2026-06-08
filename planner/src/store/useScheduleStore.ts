@@ -22,7 +22,7 @@ interface ScheduleStore {
     updateWakeTime: (day: DayKey, wakeTime: number) => void;
     updateCommute: (day: DayKey, mins: number) => void;
     updateBlock: (day: DayKey, blockId: string, updates: Partial<Block>) => void;
-    moveBlock: (day: DayKey, blockId: string, direction: "up" | "down") => void;
+    reorderDayBlocks: (day: DayKey, newOrderIds: string[]) => void;
     addBlock: (day: DayKey) => void;
     removeBlock: (day: DayKey, blockId: string) => void;
 }
@@ -73,26 +73,21 @@ export const useScheduleStore = create<ScheduleStore>()(
             },
         })),
 
-    moveBlock: (day, blockId, direction) =>
+    reorderDayBlocks: (day, newOrderIds) =>
         set((state) => {
-            const blocks = [...state.week[day].blocks];
-            const index = blocks.findIndex((b) => b.id === blockId);
-            if (index === -1) return state;
-            
-            if (direction === "up" && index > 0) {
-                [blocks[index - 1], blocks[index]] = [blocks[index], blocks[index - 1]];
-            } else if (direction === "down" && index < blocks.length - 1) {
-                [blocks[index], blocks[index + 1]] = [blocks[index + 1], blocks[index]];
-            } else {
-                return state;
-            }
-            
+            const currentBlocks = [...state.week[day].blocks];
+            currentBlocks.sort((a, b) => {
+                const indexA = newOrderIds.indexOf(a.id);
+                const indexB = newOrderIds.indexOf(b.id);
+                if (indexA === -1 || indexB === -1) return 0;
+                return indexA - indexB;
+            });
             return {
                 week: {
                     ...state.week,
                     [day]: {
                         ...state.week[day],
-                        blocks,
+                        blocks: currentBlocks,
                     },
                 },
             };
