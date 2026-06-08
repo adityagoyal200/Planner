@@ -49,6 +49,26 @@ export default function SettingsPanel() {
                         <option value={60}>60 mins</option>
                     </select>
                 </div>
+
+                <div className="pt-4 border-t border-zinc-800/50">
+                    <button
+                        onClick={async () => {
+                            const btn = document.getElementById("force-sync-btn");
+                            if (btn) btn.innerText = "Syncing...";
+                            const { forcePushToCloud } = await import("../../store/useScheduleStore");
+                            await forcePushToCloud();
+                            if (btn) btn.innerText = "Synced!";
+                            setTimeout(() => { if (btn) btn.innerText = "Force Sync to Cloud"; }, 2000);
+                        }}
+                        id="force-sync-btn"
+                        className="w-full rounded-xl bg-zinc-800/50 hover:bg-zinc-700 p-3 text-sm font-bold text-white transition-colors border border-zinc-700/50"
+                    >
+                        Force Sync to Cloud
+                    </button>
+                    <p className="text-[10px] text-zinc-500 mt-2 text-center leading-relaxed">
+                        If your phone and laptop are out of sync, click this on the device that has the correct data.
+                    </p>
+                </div>
             </div>
         </div>
     );

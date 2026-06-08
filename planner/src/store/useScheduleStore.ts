@@ -328,3 +328,8 @@ export async function hydrateFromCloud(userId: string) {
     });
     return true;
 }
+
+export async function forcePushToCloud() {
+    if (!_currentUserId) return;
+    await saveCloudState(_currentUserId, getCloudPayload());
+}
