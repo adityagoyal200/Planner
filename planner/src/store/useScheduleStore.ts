@@ -4,6 +4,7 @@ import { nanoid } from "nanoid";
 import type { Block, BlockCategory } from "../types/block";
 import type { DayData } from "../types/schedule";
 import { type CalendarEvent, updateGoogleEvent } from "../services/googleCalendar";
+import { computeSchedule } from "../engine/computeSchedule";
 import {
     createMonday,
     createTuesday,
@@ -30,9 +31,44 @@ const DEFAULT_CATEGORIES: BlockCategory[] = [
 
 export type DayKey = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
 
+export const DAY_KEYS: DayKey[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+
+export interface WeekSnapshot {
+    id: string;
+    weekLabel: string;     
+    dateArchived: string;          
+    totalSleepHours: number;
+    avgSleepHours: number;
+    sleepDebtHours: number;
+    dayScore: number;         
+    categoryBreakdown: Record<string, number>; 
+    weekData: Record<DayKey, DayData>;
+}
+
+export type AppTab = 'schedule' | 'analytics' | 'journal' | 'settings';
+
+export interface JournalEntry {
+    mood: number | null;        // 1-5
+    energy: number | null;      // 1-5
+    intention: string;
+    reflection: string;
+    gratitude: string[];
+}
+
+const DEFAULT_JOURNAL: JournalEntry = {
+    mood: null,
+    energy: null,
+    intention: "",
+    reflection: "",
+    gratitude: [],
+};
+
 interface ScheduleStore {
     selectedDay: DayKey;
     week: Record<DayKey, DayData>;
+
+    // Navigation
+    currentTab: AppTab;
 
     // Custom block categories
     categories: BlockCategory[];
@@ -51,25 +87,62 @@ interface ScheduleStore {
     googleToken: string | null;
     calendarEvents: CalendarEvent[];
 
+    // Weekly history
+    weekHistory: WeekSnapshot[];
+
+    // Gamification
+    xp: number;
+    earnedBadges: { id: string; unlockedAt: string }[];
+    streakFreezes: number;
+    streakFreezeUsedThisWeek: boolean;
+    gamificationEnabled: boolean;
+
+    // Journal
+    journal: Record<DayKey, JournalEntry>;
+
+    // Settings
+    pomodoroWork: number;
+    pomodoroBreak: number;
+    pomodoroLongBreak: number;
+    pomodoroSessions: number;
+    accentColor: string;
+    compactMode: boolean;
+
+    // Actions — Navigation
+    setCurrentTab: (tab: AppTab) => void;
+
     // Actions — Day
     setSelectedDay: (d: DayKey) => void;
     updateWakeTime: (day: DayKey, wakeTime: number) => void;
     updateCommute: (day: DayKey, mins: number) => void;
     updateActualWakeTime: (day: DayKey, time: number | null) => void;
     updateActualSleepTime: (day: DayKey, time: number | null) => void;
+    updateActualWakeDate: (day: DayKey, date: string | null) => void;
+    updateActualSleepDate: (day: DayKey, date: string | null) => void;
 
     // Actions — Blocks
     updateBlock: (day: DayKey, blockId: string, updates: Partial<Block>) => void;
     moveBlock: (day: DayKey, blockId: string, direction: "up" | "down") => void;
-    reorderBlocks: (day: DayKey, startIndex: number, endIndex: number) => void;
+    reorderBlocks: (day: DayKey, orderedIds: string[]) => void;
     addBlock: (day: DayKey, type?: string, label?: string, dur?: number) => void;
-    insertBlock: (day: DayKey, type: string, index: number) => void;
+    insertBlock: (day: DayKey, type: string, id: string, orderedIds: string[]) => void;
     removeBlock: (day: DayKey, blockId: string) => void;
 
     // Actions — Features
     updateQuickNotes: (notes: string) => void;
     updateStreak: (completed: boolean) => void;
     setFocusBlock: (id: string | null) => void;
+
+    // Actions — Gamification
+    addXP: (amount: number) => void;
+    unlockBadge: (badgeId: string) => void;
+    useStreakFreeze: () => void;
+
+    // Actions — Journal
+    updateJournal: (day: DayKey, entry: Partial<JournalEntry>) => void;
+
+    // Actions — Settings
+    updateSettings: (settings: Partial<Pick<ScheduleStore, 'pomodoroWork' | 'pomodoroBreak' | 'pomodoroLongBreak' | 'pomodoroSessions' | 'accentColor' | 'compactMode' | 'gamificationEnabled'>>) => void;
 
     // Google Calendar actions
     setGoogleToken: (token: string | null) => void;
@@ -83,6 +156,9 @@ interface ScheduleStore {
     updateCategory: (id: string, updates: Partial<BlockCategory>) => void;
     removeCategory: (id: string) => void;
 
+    // Weekly history
+    archiveCurrentWeek: () => void;
+
     resetStore: () => void;
 }
 
@@ -90,6 +166,7 @@ export const useScheduleStore = create<ScheduleStore>()(
     persist(
         (set) => ({
             selectedDay: "mon",
+            currentTab: "schedule" as AppTab,
             categories: DEFAULT_CATEGORIES,
             quickNotes: "",
             streak: 0,
@@ -97,6 +174,33 @@ export const useScheduleStore = create<ScheduleStore>()(
             focusBlockId: null,
             googleToken: null,
             calendarEvents: [],
+            weekHistory: [],
+
+            // Gamification defaults
+            xp: 0,
+            earnedBadges: [],
+            streakFreezes: 1,
+            streakFreezeUsedThisWeek: false,
+            gamificationEnabled: true,
+
+            // Journal defaults
+            journal: {
+                mon: { ...DEFAULT_JOURNAL },
+                tue: { ...DEFAULT_JOURNAL },
+                wed: { ...DEFAULT_JOURNAL },
+                thu: { ...DEFAULT_JOURNAL },
+                fri: { ...DEFAULT_JOURNAL },
+                sat: { ...DEFAULT_JOURNAL },
+                sun: { ...DEFAULT_JOURNAL },
+            },
+
+            // Settings defaults
+            pomodoroWork: 25,
+            pomodoroBreak: 5,
+            pomodoroLongBreak: 15,
+            pomodoroSessions: 4,
+            accentColor: "indigo",
+            compactMode: false,
 
             week: {
                 mon: createMonday(),
@@ -108,6 +212,7 @@ export const useScheduleStore = create<ScheduleStore>()(
                 sun: createSunday(),
             },
 
+            setCurrentTab: (tab) => set({ currentTab: tab }),
             setSelectedDay: (d) => set({ selectedDay: d }),
 
             updateWakeTime: (day, wakeTime) =>
@@ -139,6 +244,22 @@ export const useScheduleStore = create<ScheduleStore>()(
                     week: {
                         ...state.week,
                         [day]: { ...state.week[day], actualSleepTime: time },
+                    },
+                })),
+
+            updateActualWakeDate: (day, date) =>
+                set((state) => ({
+                    week: {
+                        ...state.week,
+                        [day]: { ...state.week[day], actualWakeDate: date },
+                    },
+                })),
+
+            updateActualSleepDate: (day, date) =>
+                set((state) => ({
+                    week: {
+                        ...state.week,
+                        [day]: { ...state.week[day], actualSleepDate: date },
                     },
                 })),
 
@@ -175,11 +296,16 @@ export const useScheduleStore = create<ScheduleStore>()(
                     };
                 }),
 
-            reorderBlocks: (day, startIndex, endIndex) =>
+            reorderBlocks: (day, orderedIds: string[]) =>
                 set((state) => {
-                    const blocks = Array.from(state.week[day].blocks);
-                    const [removed] = blocks.splice(startIndex, 1);
-                    blocks.splice(endIndex, 0, removed);
+                    const currentBlocks = state.week[day].blocks;
+                    const blocks = [...currentBlocks].sort((a, b) => {
+                        let idxA = orderedIds.indexOf(a.id);
+                        let idxB = orderedIds.indexOf(b.id);
+                        if (idxA === -1) idxA = Infinity;
+                        if (idxB === -1) idxB = Infinity;
+                        return idxA - idxB;
+                    });
                     return {
                         week: {
                             ...state.week,
@@ -208,16 +334,25 @@ export const useScheduleStore = create<ScheduleStore>()(
                     },
                 })),
 
-            insertBlock: (day, type, index) =>
+            insertBlock: (day, type, id, orderedIds) =>
                 set((state) => {
-                    const blocks = Array.from(state.week[day].blocks);
-                    blocks.splice(index, 0, {
-                        id: nanoid(),
+                    const newBlock: Block = {
+                        id,
                         type: type as Block["type"],
                         label: `New ${type}`,
                         dur: type === "nap" ? 60 : 30,
                         on: true,
+                    };
+                    const currentBlocks = [...state.week[day].blocks, newBlock];
+                    
+                    const blocks = currentBlocks.sort((a, b) => {
+                        let idxA = orderedIds.indexOf(a.id);
+                        let idxB = orderedIds.indexOf(b.id);
+                        if (idxA === -1) idxA = Infinity;
+                        if (idxB === -1) idxB = Infinity;
+                        return idxA - idxB;
                     });
+                    
                     return {
                         week: {
                             ...state.week,
@@ -258,6 +393,30 @@ export const useScheduleStore = create<ScheduleStore>()(
                 }),
 
             setFocusBlock: (id) => set({ focusBlockId: id }),
+
+            // Gamification actions
+            addXP: (amount) => set((state) => ({ xp: state.xp + amount })),
+            unlockBadge: (badgeId) => set((state) => {
+                if (state.earnedBadges.some(b => b.id === badgeId)) return state;
+                return {
+                    earnedBadges: [...state.earnedBadges, { id: badgeId, unlockedAt: new Date().toISOString() }]
+                };
+            }),
+            useStreakFreeze: () => set((state) => ({
+                streakFreezes: Math.max(0, state.streakFreezes - 1),
+                streakFreezeUsedThisWeek: true,
+            })),
+
+            // Journal actions
+            updateJournal: (day, entry) => set((state) => ({
+                journal: {
+                    ...state.journal,
+                    [day]: { ...(state.journal?.[day] || DEFAULT_JOURNAL), ...entry }
+                }
+            })),
+
+            // Settings actions
+            updateSettings: (settings) => set(settings),
 
             setGoogleToken: (token) => set({ googleToken: token }),
             setCalendarEvents: (events) => set({ calendarEvents: events }),
@@ -320,8 +479,69 @@ export const useScheduleStore = create<ScheduleStore>()(
                     categories: state.categories.filter((c) => c.id !== id),
                 })),
 
+            archiveCurrentWeek: () =>
+                set((state) => {
+                    let totalSleepMins = 0;
+                    let totalDayScore = 0;
+                    const categoryBreakdown: Record<string, number> = {};
+
+                    DAY_KEYS.forEach((dk) => {
+                        const dayData = state.week[dk];
+                        if (!dayData) return;
+                        const { sleepTime, totalNapMins, dayScore } = computeSchedule(dayData);
+                        totalDayScore += dayScore;
+
+                        const wakeMins = dayData.actualWakeTime ?? dayData.wakeTime;
+                        const effSleep = dayData.actualSleepTime ?? sleepTime;
+                        let sleepDur = 0;
+                        
+                        if (dayData.actualSleepTime != null && dayData.actualSleepDate && dayData.actualWakeDate) {
+                            const sleepDate = new Date(dayData.actualSleepDate);
+                            const wakeDate = new Date(dayData.actualWakeDate);
+                            const sleepAbsolute = sleepDate.getTime() / 60000 + (dayData.actualSleepTime % 1440);
+                            const wakeAbsolute = wakeDate.getTime() / 60000 + (wakeMins % 1440);
+                            sleepDur = Math.abs(wakeAbsolute - sleepAbsolute);
+                        } else if (effSleep <= 24 * 60) {
+                            sleepDur = (24 * 60 - effSleep) + wakeMins;
+                        } else {
+                            sleepDur = wakeMins - (effSleep - 24 * 60);
+                        }
+                        sleepDur += totalNapMins;
+                        totalSleepMins += Math.max(0, sleepDur);
+
+                        dayData.blocks.forEach((b) => {
+                            if (!b.on) return;
+                            categoryBreakdown[b.type] = (categoryBreakdown[b.type] || 0) + b.dur;
+                        });
+                    });
+
+                    const now = new Date();
+                    const mondayOfThisWeek = new Date(now);
+                    mondayOfThisWeek.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+                    const sundayOfThisWeek = new Date(mondayOfThisWeek);
+                    sundayOfThisWeek.setDate(mondayOfThisWeek.getDate() + 6);
+
+                    const fmt = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                    const weekLabel = `${fmt(mondayOfThisWeek)} – ${fmt(sundayOfThisWeek)}, ${sundayOfThisWeek.getFullYear()}`;
+
+                    const snapshot: WeekSnapshot = {
+                        id: nanoid(),
+                        weekLabel,
+                        dateArchived: now.toISOString(),
+                        totalSleepHours: parseFloat((totalSleepMins / 60).toFixed(1)),
+                        avgSleepHours: parseFloat((totalSleepMins / 60 / 7).toFixed(1)),
+                        sleepDebtHours: parseFloat((Math.max(0, 7 * 7 - totalSleepMins / 60)).toFixed(1)),
+                        dayScore: parseFloat((totalDayScore / 7).toFixed(1)),
+                        categoryBreakdown,
+                        weekData: JSON.parse(JSON.stringify(state.week)),
+                    };
+
+                    return { weekHistory: [...state.weekHistory, snapshot] };
+                }),
+
             resetStore: () => set({
                 selectedDay: "mon",
+                currentTab: "schedule" as AppTab,
                 categories: DEFAULT_CATEGORIES,
                 quickNotes: "",
                 streak: 0,
@@ -329,6 +549,27 @@ export const useScheduleStore = create<ScheduleStore>()(
                 focusBlockId: null,
                 googleToken: null,
                 calendarEvents: [],
+                weekHistory: [],
+                xp: 0,
+                earnedBadges: [],
+                streakFreezes: 1,
+                streakFreezeUsedThisWeek: false,
+                gamificationEnabled: true,
+                journal: {
+                    mon: { ...DEFAULT_JOURNAL },
+                    tue: { ...DEFAULT_JOURNAL },
+                    wed: { ...DEFAULT_JOURNAL },
+                    thu: { ...DEFAULT_JOURNAL },
+                    fri: { ...DEFAULT_JOURNAL },
+                    sat: { ...DEFAULT_JOURNAL },
+                    sun: { ...DEFAULT_JOURNAL },
+                },
+                pomodoroWork: 25,
+                pomodoroBreak: 5,
+                pomodoroLongBreak: 15,
+                pomodoroSessions: 4,
+                accentColor: "indigo",
+                compactMode: false,
                 week: {
                     mon: createMonday(),
                     tue: createTuesday(),
@@ -364,6 +605,19 @@ function getCloudPayload() {
         streak: s.streak,
         lastCompletedDate: s.lastCompletedDate,
         selectedDay: s.selectedDay,
+        weekHistory: s.weekHistory,
+        xp: s.xp,
+        earnedBadges: s.earnedBadges,
+        streakFreezes: s.streakFreezes,
+        streakFreezeUsedThisWeek: s.streakFreezeUsedThisWeek,
+        gamificationEnabled: s.gamificationEnabled,
+        journal: s.journal,
+        pomodoroWork: s.pomodoroWork,
+        pomodoroBreak: s.pomodoroBreak,
+        pomodoroLongBreak: s.pomodoroLongBreak,
+        pomodoroSessions: s.pomodoroSessions,
+        accentColor: s.accentColor,
+        compactMode: s.compactMode,
     };
 }
 
@@ -392,6 +646,19 @@ export async function hydrateFromCloud(userId: string) {
         streak: cloud.streak ?? 0,
         lastCompletedDate: cloud.lastCompletedDate ?? null,
         selectedDay: cloud.selectedDay ?? "mon",
+        weekHistory: cloud.weekHistory ?? [],
+        xp: cloud.xp ?? 0,
+        earnedBadges: cloud.earnedBadges ?? [],
+        streakFreezes: cloud.streakFreezes ?? 1,
+        streakFreezeUsedThisWeek: cloud.streakFreezeUsedThisWeek ?? false,
+        gamificationEnabled: cloud.gamificationEnabled ?? true,
+        journal: cloud.journal ?? useScheduleStore.getState().journal,
+        pomodoroWork: cloud.pomodoroWork ?? 25,
+        pomodoroBreak: cloud.pomodoroBreak ?? 5,
+        pomodoroLongBreak: cloud.pomodoroLongBreak ?? 15,
+        pomodoroSessions: cloud.pomodoroSessions ?? 4,
+        accentColor: cloud.accentColor ?? "indigo",
+        compactMode: cloud.compactMode ?? false,
     });
     return true;
 }

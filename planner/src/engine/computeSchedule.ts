@@ -1,9 +1,18 @@
 import type { DayData } from "../types/schedule";
 import type { CalendarEvent } from "../services/googleCalendar";
 
-export function computeSchedule(day: DayData, calendarEvents: CalendarEvent[] = []) {
+export interface ScheduleOptions {
+    referenceDate?: string;       // ISO date for this day, e.g. "2026-06-09"
+    prevDayCarryOver?: any[];     // blocks from prev day that extend past midnight
+}
+
+export function computeSchedule(
+    day: DayData,
+    calendarEvents: CalendarEvent[] = [],
+    options: ScheduleOptions = {}
+) {
     let t = day.actualWakeTime !== null ? day.actualWakeTime : day.wakeTime;
-    const scheduled = [];
+    const scheduled: any[] = [];
     const warnings: string[] = [];
 
     const isWorkday = day.workStart > 0;
@@ -22,10 +31,33 @@ export function computeSchedule(day: DayData, calendarEvents: CalendarEvent[] = 
         
         if (!block.on) continue;
         if (block.type === "swim") swimActive = true;
-        if (block.type === "nap") totalNapMins += block.dur;
+        if (block.type === "nap" || block.type === "sleep") totalNapMins += block.dur;
     }
 
     const dayScore = totalRealBlocks > 0 ? (onBlocksCount / totalRealBlocks) * 100 : 100;
+
+    // --- Carry-over blocks from previous day ---
+    const carryOverBlocks: any[] = [];
+    if (options.prevDayCarryOver && options.prevDayCarryOver.length > 0) {
+        for (const cb of options.prevDayCarryOver) {
+            // Convert: if prev day block ended at e.g. 1560 mins (2 AM next day),
+            // that means it occupies 0..120 on *this* day
+            const overlapStart = Math.max(0, cb.start - 1440);
+            const overlapEnd = cb.end - 1440;
+            if (overlapEnd <= 0) continue;
+            carryOverBlocks.push({
+                id: `carryover-${cb.id}`,
+                type: cb.type,
+                label: cb.label,
+                start: overlapStart,
+                end: overlapEnd,
+                dur: overlapEnd - overlapStart,
+                virtual: true,
+                carryOver: true,
+                carryFromDay: cb.carryFromDay || "prev",
+            });
+        }
+    }
 
     const sortedEvents = [...calendarEvents].filter(e => !e.allDay).sort((a, b) => a.startMins - b.startMins);
     const processedEvents = new Set<string>();
@@ -69,6 +101,15 @@ export function computeSchedule(day: DayData, calendarEvents: CalendarEvent[] = 
             continue;
         }
 
+        // If block has actualStart with a date, compute absolute offset
+        let blockActualStart = block.actualStart;
+        if (blockActualStart != null && block.actualStartDate && options.referenceDate) {
+            const refDate = new Date(options.referenceDate);
+            const blockDate = new Date(block.actualStartDate);
+            const dayDiff = Math.round((blockDate.getTime() - refDate.getTime()) / 86400000);
+            blockActualStart = dayDiff * 1440 + blockActualStart;
+        }
+
         if (block.type === "work" && isWorkday) {
             if (t < commuteStart) {
                 scheduled.push({
@@ -96,7 +137,7 @@ export function computeSchedule(day: DayData, calendarEvents: CalendarEvent[] = 
             });
             t += day.commuteMins;
 
-            if (block.actualStart != null) t = Math.max(t, block.actualStart);
+            if (blockActualStart != null) t = blockActualStart;
             pushPastGoogleEvents(block.dur);
 
             scheduled.push({
@@ -117,7 +158,7 @@ export function computeSchedule(day: DayData, calendarEvents: CalendarEvent[] = 
             });
             t += day.commuteMins + 15;
         } else {
-            if (block.actualStart != null) t = Math.max(t, block.actualStart);
+            if (blockActualStart != null) t = blockActualStart;
             pushPastGoogleEvents(block.dur);
 
             // Check if 10 DM aim routine is placed before work
@@ -156,8 +197,32 @@ export function computeSchedule(day: DayData, calendarEvents: CalendarEvent[] = 
     // Sort scheduled array by start time to ensure perfect chronological order
     scheduled.sort((a, b) => a.start - b.start);
 
-    // Identify gaps between scheduled items if any logic leaves a gap (not likely with sequential, but let's be robust)
-    const scheduledWithGaps = [];
+    // Identify gaps between scheduled items
+    const scheduledWithGaps: any[] = [];
+
+    // First, add carry-over blocks
+    if (carryOverBlocks.length > 0) {
+        carryOverBlocks.sort((a, b) => a.start - b.start);
+        for (const cb of carryOverBlocks) {
+            scheduledWithGaps.push(cb);
+        }
+        // Add a gap between carry-over end and wake time if needed
+        const lastCarryOver = carryOverBlocks[carryOverBlocks.length - 1];
+        const wakeTime = day.actualWakeTime ?? day.wakeTime;
+        if (lastCarryOver.end < wakeTime) {
+            scheduledWithGaps.push({
+                id: `carryover-sleep`,
+                label: "Sleep",
+                type: "sleep",
+                start: lastCarryOver.end,
+                end: wakeTime,
+                dur: wakeTime - lastCarryOver.end,
+                virtual: true,
+                carryOver: true,
+            });
+        }
+    }
+
     for (let i = 0; i < scheduled.length; i++) {
         const curr = scheduled[i];
         if (i > 0) {
@@ -174,6 +239,21 @@ export function computeSchedule(day: DayData, calendarEvents: CalendarEvent[] = 
                     virtual: true,
                 });
             }
+        } else if (scheduledWithGaps.length > 0) {
+            // Check gap between carry-over blocks and first scheduled block
+            const lastPrev = scheduledWithGaps[scheduledWithGaps.length - 1];
+            if (curr.start > lastPrev.end) {
+                const gapDur = curr.start - lastPrev.end;
+                scheduledWithGaps.push({
+                    id: `gap-${lastPrev.end}`,
+                    label: `Gap (${gapDur}m)`,
+                    type: "free",
+                    start: lastPrev.end,
+                    end: curr.start,
+                    dur: gapDur,
+                    virtual: true,
+                });
+            }
         }
         scheduledWithGaps.push(curr);
     }
@@ -185,38 +265,85 @@ export function computeSchedule(day: DayData, calendarEvents: CalendarEvent[] = 
 
     const sleepTime = t;
     
-    // Calculate sleep duration
     let sleepDurationMins = 0;
-    if (sleepTime <= 24 * 60) {
+    if (day.actualSleepTime != null && day.actualSleepDate && day.actualWakeDate) {
+        const sleepDate = new Date(day.actualSleepDate);
+        const wakeDate = new Date(day.actualWakeDate || day.actualSleepDate);
+        let sleepAbsolute = sleepDate.getTime() / 60000 + (day.actualSleepTime % 1440);
+        let wakeAbsolute = wakeDate.getTime() / 60000 + ((day.actualWakeTime ?? day.wakeTime) % 1440);
+        
+        let diff = wakeAbsolute - sleepAbsolute;
+        
+        if (diff < 0) diff += 24 * 60;
+        
+        if (diff > 24 * 60) diff -= 24 * 60;
+        
+        sleepDurationMins = diff;
+    } else if (sleepTime <= 24 * 60) {
         sleepDurationMins = (24 * 60 - sleepTime) + day.wakeTime;
     } else {
         const sleepNextDayMins = sleepTime - 24 * 60;
         sleepDurationMins = day.wakeTime - sleepNextDayMins;
     }
 
-    // Add nap to sleep duration
+    const nightSleepMins = sleepDurationMins;
     sleepDurationMins += totalNapMins;
 
     if (sleepDurationMins < day.sleepTarget) {
         warnings.push(`Sleep deficit! You are getting ${(sleepDurationMins / 60).toFixed(1)}h of total sleep, which is under your ${(day.sleepTarget / 60).toFixed(1)}h target.`);
     }
 
+    // Add a virtual sleep block at the end of the day
+    if (nightSleepMins > 0) {
+        scheduledWithGaps.push({
+            id: `virtual-sleep-end`,
+            label: "Sleep",
+            type: "sleep",
+            start: sleepTime,
+            end: sleepTime + nightSleepMins,
+            dur: nightSleepMins,
+            virtual: true,
+        });
+    }
+
+    // --- Export blocks that bleed past midnight for next day's carry-over ---
+    const carryOverForNextDay: any[] = [];
+    for (const block of scheduled) {
+        if (block.end > 1440 && !block.virtual) {
+            carryOverForNextDay.push({
+                ...block,
+                carryFromDay: "current",
+            });
+        }
+    }
+
     // Determine "Now"
     const now = new Date();
-    const currentMins = now.getHours() * 60 + now.getMinutes();
+    
+    let currentMins = -1;
+    if (options.referenceDate) {
+        // Find exactly how many minutes `now` is from the reference day's midnight
+        const refD = new Date(options.referenceDate + "T00:00:00");
+        const diffMins = Math.floor((now.getTime() - refD.getTime()) / 60000);
+        // We only care about Now if it falls within the 48-hour render window of the timeline
+        if (diffMins >= 0 && diffMins < 2880) {
+            currentMins = diffMins;
+        }
+    } else {
+        currentMins = now.getHours() * 60 + now.getMinutes();
+    }
 
     let nowBlockIndex = -1;
     let nowProgress = 0;
 
-    for (let i = 0; i < scheduledWithGaps.length; i++) {
-        const b = scheduledWithGaps[i];
-        if (currentMins >= b.start && currentMins < b.end) {
-            nowBlockIndex = i;
-            nowProgress = (currentMins - b.start) / b.dur;
-            break;
-        } else if (currentMins < b.start && nowBlockIndex === -1) {
-            // we haven't reached this block yet, and we are before it
-            // wait, if we are here, we are technically in a gap before the first block
+    if (currentMins >= 0) {
+        for (let i = 0; i < scheduledWithGaps.length; i++) {
+            const b = scheduledWithGaps[i];
+            if (currentMins >= b.start && currentMins < b.end) {
+                nowBlockIndex = i;
+                nowProgress = (currentMins - b.start) / b.dur;
+                break;
+            }
         }
     }
 
@@ -229,5 +356,6 @@ export function computeSchedule(day: DayData, calendarEvents: CalendarEvent[] = 
         nowProgress,
         currentMins,
         dayScore,
+        carryOverForNextDay,
     };
 }

@@ -1,11 +1,20 @@
 import { useState } from "react";
 import { useAuthStore } from "../../store/useAuthStore";
-import { setCloudUserId } from "../../store/useScheduleStore";
+import { setCloudUserId, useScheduleStore } from "../../store/useScheduleStore";
+import type { AppTab } from "../../store/useScheduleStore";
+
+const TABS: { id: AppTab; label: string; icon: string }[] = [
+    { id: "schedule", label: "Schedule", icon: "📋" },
+    { id: "analytics", label: "Analytics", icon: "📊" },
+    { id: "journal", label: "Journal", icon: "📓" },
+    { id: "settings", label: "Settings", icon: "⚙️" },
+];
 
 export default function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
     const now = new Date();
     const { user, logout } = useAuthStore();
     const [showMenu, setShowMenu] = useState(false);
+    const { currentTab, setCurrentTab } = useScheduleStore();
 
     const handleLogout = () => {
         setCloudUserId(null);
@@ -23,7 +32,7 @@ export default function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
                         </svg>
                     </button>
                 )}
-                <div>
+                <div className="hidden md:block">
                     <div className="text-sm text-zinc-500">
                         {now.toLocaleDateString("en-US", { weekday: "long" })}
                     </div>
@@ -32,6 +41,24 @@ export default function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
                         Build Mode
                     </div>
                 </div>
+            </div>
+
+            {/* Tab Navigation */}
+            <div className="flex items-center gap-1 bg-zinc-900/50 backdrop-blur-md rounded-xl p-1 border border-zinc-800/50">
+                {TABS.map((tab) => (
+                    <button
+                        key={tab.id}
+                        onClick={() => setCurrentTab(tab.id)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+                            currentTab === tab.id
+                                ? "bg-white text-black shadow-lg shadow-white/10"
+                                : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
+                        }`}
+                    >
+                        <span className="text-sm">{tab.icon}</span>
+                        <span className="hidden sm:inline">{tab.label}</span>
+                    </button>
+                ))}
             </div>
 
             <div className="flex items-center gap-4">

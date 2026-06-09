@@ -1,6 +1,7 @@
 export function formatTime(mins: number) {
-    const h = Math.floor(mins / 60) % 24;
-    const m = mins % 60;
+    const positiveMins = ((mins % 1440) + 1440) % 1440;
+    const h = Math.floor(positiveMins / 60);
+    const m = positiveMins % 60;
 
     const suffix = h >= 12 ? "pm" : "am";
 

@@ -16,4 +16,5 @@ export interface Block {
     locked?: boolean;
     note?: string;
     actualStart?: number | null;
+    actualStartDate?: string | null;  // ISO date string e.g. "2026-06-09"
 }

@@ -4,11 +4,39 @@ import Topbar from "./Topbar";
 import Timeline from "../schedule/Timeline";
 import SleepAnalysis from "../schedule/SleepAnalysis";
 import CalendarSync from "./CalendarSync";
-import SettingsPanel from "../settings/SettingsPanel";
-import WeeklyAnalysis from "../analytics/WeeklyAnalysis";
+import AnalyticsDashboard from "../analytics/AnalyticsDashboard";
+import JournalPage from "../journal/JournalPage";
+import SettingsPage from "../settings/SettingsPage";
+import { useScheduleStore } from "../../store/useScheduleStore";
 
 export default function DashboardLayout() {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const { currentTab } = useScheduleStore();
+
+    const renderTabContent = () => {
+        switch (currentTab) {
+            case "schedule":
+                return (
+                    <div className="max-w-6xl mx-auto grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-8">
+                        <div>
+                            <Timeline />
+                        </div>
+                        <div className="space-y-6">
+                            <SleepAnalysis />
+                            <CalendarSync />
+                        </div>
+                    </div>
+                );
+            case "analytics":
+                return <AnalyticsDashboard />;
+            case "journal":
+                return <JournalPage />;
+            case "settings":
+                return <SettingsPage />;
+            default:
+                return null;
+        }
+    };
 
     return (
         <div className="flex min-h-screen text-white selection:bg-white/20 relative font-sans">
@@ -29,17 +57,7 @@ export default function DashboardLayout() {
             <div className="flex-1 flex flex-col min-w-0 relative">
                 <Topbar onMenuClick={() => setIsSidebarOpen(true)} />
                 <main className="flex-1 overflow-auto p-4 md:p-8 pt-6 pb-24 relative">
-                    <div className="max-w-6xl mx-auto grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-8">
-                        <div>
-                            <Timeline />
-                        </div>
-                        <div className="space-y-6">
-                            <SleepAnalysis />
-                            <CalendarSync />
-                            <WeeklyAnalysis />
-                            <SettingsPanel />
-                        </div>
-                    </div>
+                    {renderTabContent()}
                 </main>
             </div>
         </div>
