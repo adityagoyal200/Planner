@@ -4,6 +4,7 @@ import { computeSchedule } from "../../engine/computeSchedule";
 import FocusTimer from "./FocusTimer";
 import BlockInspector from "./BlockInspector";
 import { getQuoteOfTheDay } from "../../data/quotes";
+import { getLevelInfo } from "../../engine/xpEngine";
 
 const days = [
     { id: "mon", label: "M" },
@@ -16,11 +17,12 @@ const days = [
 ] as const;
 
 export default function Sidebar({ onClose }: { onClose?: () => void }) {
-    const { selectedDay, setSelectedDay, week, quickNotes, updateQuickNotes, streak } = useScheduleStore();
+    const { selectedDay, setSelectedDay, week, quickNotes, updateQuickNotes, streak, xp, gamificationEnabled } = useScheduleStore();
     const day = week[selectedDay];
     
     const { dayScore } = day ? computeSchedule(day) : { dayScore: 0 };
     const quote = getQuoteOfTheDay();
+    const levelInfo = getLevelInfo(xp);
 
     return (
         <div className="w-80 h-full border-r border-white/5 bg-black/40 backdrop-blur-xl p-5 flex flex-col relative z-10 overflow-y-auto">
@@ -59,6 +61,33 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
                     </button>
                 ))}
             </div>
+
+            {/* Level & XP Progression */}
+            {gamificationEnabled && (
+                <div className="glass-card rounded-2xl p-4 mb-8 relative overflow-hidden group">
+                    <div className="absolute -right-8 -top-8 h-20 w-20 rounded-full bg-indigo-500/10 blur-2xl group-hover:bg-indigo-500/20 transition-all duration-500" />
+                    <div className="relative z-10">
+                        <div className="flex justify-between items-center mb-1">
+                            <span className="text-zinc-500 text-xs font-bold uppercase tracking-wider">Level {levelInfo.level}</span>
+                            <span className="text-[10px] text-indigo-400 font-extrabold uppercase tracking-widest">{levelInfo.title}</span>
+                        </div>
+                        <div className="text-xl font-black text-white flex items-baseline gap-1 mb-2">
+                            <span>{levelInfo.totalXP}</span>
+                            <span className="text-xs text-zinc-500 font-bold uppercase">XP</span>
+                        </div>
+                        <div className="w-full h-2 bg-zinc-900 rounded-full overflow-hidden p-0.5 border border-white/5">
+                            <div 
+                                className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-full transition-all duration-500" 
+                                style={{ width: `${levelInfo.progress * 100}%` }}
+                            />
+                        </div>
+                        <div className="flex justify-between items-center mt-1 text-[9px] text-zinc-500 font-bold tabular-nums">
+                            <span>{levelInfo.xpInLevel} / {levelInfo.xpForNextLevel} XP</span>
+                            <span>{Math.round(levelInfo.progress * 100)}%</span>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Score & Streak Grid */}
             <div className="grid grid-cols-2 gap-3 mb-8">

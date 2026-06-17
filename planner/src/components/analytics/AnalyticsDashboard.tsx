@@ -1,3 +1,5 @@
+import { useScheduleStore } from "../../store/useScheduleStore";
+import { getWeekLabel } from "../../utils/dateUtils";
 import XPCard from "./XPCard";
 import SleepLineChart from "./SleepLineChart";
 import TimeDonut from "./TimeDonut";
@@ -8,6 +10,9 @@ import InsightsPanel from "./InsightsPanel";
 import WeeklyHistory from "./WeeklyHistory";
 
 export default function AnalyticsDashboard() {
+    const { currentWeekKey, browsingWeekKey } = useScheduleStore();
+    const weekLabel = getWeekLabel(browsingWeekKey || currentWeekKey);
+
     return (
         <div className="max-w-5xl mx-auto space-y-6">
             <div className="flex items-baseline gap-3 mb-2">
@@ -15,7 +20,7 @@ export default function AnalyticsDashboard() {
                     Analytics
                 </h1>
                 <span className="text-[10px] uppercase font-bold tracking-widest text-zinc-600">
-                    Weekly Performance
+                    Weekly Performance - {weekLabel}
                 </span>
             </div>
 

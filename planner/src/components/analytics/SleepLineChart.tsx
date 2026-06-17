@@ -1,38 +1,23 @@
 import { useScheduleStore, DAY_KEYS } from "../../store/useScheduleStore";
 import type { DayKey } from "../../store/useScheduleStore";
 import { computeSchedule } from "../../engine/computeSchedule";
-import { getDateForDayKey } from "../../utils/dateUtils";
+import { getDateForDayKeyInWeek } from "../../utils/dateUtils";
+import { getTotalSleepDurationMins } from "../../utils/sleepUtils";
 
-function getSleepHours(dayKey: DayKey): number {
+function getSleepHours(dayKey: DayKey, weekKey: string): number {
     const week = useScheduleStore.getState().week;
     const day = week[dayKey];
-    const refDate = getDateForDayKey(dayKey);
+    const refDate = getDateForDayKeyInWeek(dayKey, weekKey);
     const { sleepTime, totalNapMins } = computeSchedule(day, [], { referenceDate: refDate });
-    const wakeMins = day.actualWakeTime ?? day.wakeTime;
-    const effectiveSleep = day.actualSleepTime ?? sleepTime;
-
-    let sleepDur = 0;
-    if (day.actualSleepTime != null && day.actualSleepDate && day.actualWakeDate) {
-        const sd = new Date(day.actualSleepDate).getTime() / 60000 + (day.actualSleepTime % 1440);
-        const wd = new Date(day.actualWakeDate).getTime() / 60000 + (wakeMins % 1440);
-        let diff = wd - sd;
-        if (diff < 0) diff += 1440;
-        if (diff > 1440) diff -= 1440;
-        sleepDur = diff;
-    } else if (effectiveSleep <= 1440) {
-        sleepDur = (1440 - effectiveSleep) + wakeMins;
-    } else {
-        sleepDur = wakeMins - (effectiveSleep - 1440);
-    }
-    sleepDur += totalNapMins;
-    return Math.max(0, sleepDur / 60);
+    return getTotalSleepDurationMins(day, sleepTime, totalNapMins) / 60;
 }
 
 export default function SleepLineChart() {
-    const { week } = useScheduleStore();
+    const { week, currentWeekKey, browsingWeekKey } = useScheduleStore();
+    const weekKey = browsingWeekKey || currentWeekKey;
     const labels = ["M", "T", "W", "T", "F", "S", "S"];
     
-    const data = DAY_KEYS.map(d => getSleepHours(d));
+    const data = DAY_KEYS.map(d => getSleepHours(d, weekKey));
     const target = week.mon.sleepTarget / 60; // Assume uniform target
     
     // Chart dimensions

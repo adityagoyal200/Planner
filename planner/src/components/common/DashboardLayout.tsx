@@ -7,11 +7,26 @@ import CalendarSync from "./CalendarSync";
 import AnalyticsDashboard from "../analytics/AnalyticsDashboard";
 import JournalPage from "../journal/JournalPage";
 import SettingsPage from "../settings/SettingsPage";
+import WeekNavigator from "../schedule/WeekNavigator";
+import NewWeekBanner from "../schedule/NewWeekBanner";
 import { useScheduleStore } from "../../store/useScheduleStore";
+import { Toaster } from "react-hot-toast";
+import LevelUpModal from "./LevelUpModal";
+
+const ACCENT_MAP: Record<string, string> = {
+    indigo: "#6366f1",
+    rose: "#f43f5e",
+    emerald: "#10b981",
+    violet: "#8b5cf6",
+    amber: "#f59e0b",
+    cyan: "#06b6d4",
+};
 
 export default function DashboardLayout() {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-    const { currentTab } = useScheduleStore();
+    const { currentTab, accentColor, compactMode } = useScheduleStore();
+
+    const accentHex = ACCENT_MAP[accentColor] || ACCENT_MAP.indigo;
 
     const renderTabContent = () => {
         switch (currentTab) {
@@ -19,6 +34,7 @@ export default function DashboardLayout() {
                 return (
                     <div className="max-w-6xl mx-auto grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-8">
                         <div>
+                            <NewWeekBanner />
                             <Timeline />
                         </div>
                         <div className="space-y-6">
@@ -39,7 +55,10 @@ export default function DashboardLayout() {
     };
 
     return (
-        <div className="flex min-h-screen text-white selection:bg-white/20 relative font-sans">
+        <div
+            className={`flex min-h-screen text-white selection:bg-white/20 relative font-sans ${compactMode ? 'compact-mode' : ''}`}
+            style={{ '--accent': accentHex, '--accent-light': `${accentHex}33` } as React.CSSProperties}
+        >
             <div className="glass-bg" />
             
             {isSidebarOpen && (
@@ -57,9 +76,14 @@ export default function DashboardLayout() {
             <div className="flex-1 flex flex-col min-w-0 relative">
                 <Topbar onMenuClick={() => setIsSidebarOpen(true)} />
                 <main className="flex-1 overflow-auto p-4 md:p-8 pt-6 pb-24 relative">
+                    <div className="max-w-6xl mx-auto">
+                        <WeekNavigator />
+                    </div>
                     {renderTabContent()}
                 </main>
             </div>
+            <Toaster position="top-right" />
+            <LevelUpModal />
         </div>
     );
 }

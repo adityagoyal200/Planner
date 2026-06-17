@@ -2,6 +2,7 @@ import MoodLogger from "./MoodLogger";
 import ReflectionEditor from "./ReflectionEditor";
 import MoodChart from "./MoodChart";
 import { useScheduleStore } from "../../store/useScheduleStore";
+import { getWeekLabel } from "../../utils/dateUtils";
 
 const DAY_LABELS: Record<string, string> = {
     mon: "Monday", tue: "Tuesday", wed: "Wednesday", thu: "Thursday",
@@ -9,7 +10,8 @@ const DAY_LABELS: Record<string, string> = {
 };
 
 export default function JournalPage() {
-    const { selectedDay } = useScheduleStore();
+    const { selectedDay, currentWeekKey, browsingWeekKey } = useScheduleStore();
+    const weekLabel = getWeekLabel(browsingWeekKey || currentWeekKey);
 
     return (
         <div className="max-w-3xl mx-auto space-y-6">
@@ -18,7 +20,7 @@ export default function JournalPage() {
                     Journal
                 </h1>
                 <span className="text-[10px] uppercase font-bold tracking-widest text-zinc-600">
-                    {DAY_LABELS[selectedDay]}'s Entry
+                    {DAY_LABELS[selectedDay]}'s Entry - {weekLabel}
                 </span>
             </div>
 

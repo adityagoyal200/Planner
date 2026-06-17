@@ -1,9 +1,12 @@
 import type { DayData } from "../types/schedule";
+import type { ScheduledBlock } from "../types/block";
 import type { CalendarEvent } from "../services/googleCalendar";
+import { getDaysDiff } from "../utils/dateUtils";
+import { getNightSleepDurationMins, getTotalSleepDurationMins } from "../utils/sleepUtils";
 
 export interface ScheduleOptions {
     referenceDate?: string;       // ISO date for this day, e.g. "2026-06-09"
-    prevDayCarryOver?: any[];     // blocks from prev day that extend past midnight
+    prevDayCarryOver?: ScheduledBlock[];     // blocks from prev day that extend past midnight
 }
 
 export function computeSchedule(
@@ -12,14 +15,13 @@ export function computeSchedule(
     options: ScheduleOptions = {}
 ) {
     let t = day.actualWakeTime !== null ? day.actualWakeTime : day.wakeTime;
-    const scheduled: any[] = [];
+    const scheduled: ScheduledBlock[] = [];
     const warnings: string[] = [];
 
     const isWorkday = day.workStart > 0;
     const commuteStart = isWorkday ? day.workStart - day.commuteMins : 0;
 
-    let aimInMorning = false;
-    let swimActive = false;
+
     let totalNapMins = 0;
 
     let onBlocksCount = 0;
@@ -30,14 +32,16 @@ export function computeSchedule(
         if (block.on) onBlocksCount++;
         
         if (!block.on) continue;
-        if (block.type === "swim") swimActive = true;
-        if (block.type === "nap" || block.type === "sleep") totalNapMins += block.dur;
+
+        // Only daytime nap blocks should count as nap mins.
+        // Night sleep is computed separately from planned/actual sleep times.
+        if (block.type === "nap") totalNapMins += block.dur;
     }
 
     const dayScore = totalRealBlocks > 0 ? (onBlocksCount / totalRealBlocks) * 100 : 100;
 
     // --- Carry-over blocks from previous day ---
-    const carryOverBlocks: any[] = [];
+    const carryOverBlocks: ScheduledBlock[] = [];
     if (options.prevDayCarryOver && options.prevDayCarryOver.length > 0) {
         for (const cb of options.prevDayCarryOver) {
             // Convert: if prev day block ended at e.g. 1560 mins (2 AM next day),
@@ -60,36 +64,7 @@ export function computeSchedule(
     }
 
     const sortedEvents = [...calendarEvents].filter(e => !e.allDay).sort((a, b) => a.startMins - b.startMins);
-    const processedEvents = new Set<string>();
-
-    // Helper to process overlapping google events before placing a block
-    const pushPastGoogleEvents = (blockDur: number) => {
-        while (true) {
-            const overlapping = sortedEvents.find(ev => 
-                !processedEvents.has(ev.id) &&
-                ((t >= ev.startMins && t < ev.endMins) || 
-                 (t + blockDur > ev.startMins && t <= ev.startMins))
-            );
-
-            if (!overlapping) break;
-
-            scheduled.push({
-                id: `google-${overlapping.id}`,
-                type: "google-calendar",
-                label: overlapping.title,
-                start: overlapping.startMins,
-                end: overlapping.endMins,
-                dur: overlapping.endMins - overlapping.startMins,
-                virtual: true,
-                source: "google",
-                color: overlapping.color,
-                originalEvent: overlapping
-            });
-            processedEvents.add(overlapping.id);
-
-            t = Math.max(t, overlapping.endMins);
-        }
-    };
+    // Remove pushPastGoogleEvents to stop shifting blocks.
 
     for (const block of day.blocks) {
         if (!block.on) {
@@ -104,9 +79,7 @@ export function computeSchedule(
         // If block has actualStart with a date, compute absolute offset
         let blockActualStart = block.actualStart;
         if (blockActualStart != null && block.actualStartDate && options.referenceDate) {
-            const refDate = new Date(options.referenceDate);
-            const blockDate = new Date(block.actualStartDate);
-            const dayDiff = Math.round((blockDate.getTime() - refDate.getTime()) / 86400000);
+            const dayDiff = getDaysDiff(block.actualStartDate, options.referenceDate);
             blockActualStart = dayDiff * 1440 + blockActualStart;
         }
 
@@ -138,7 +111,6 @@ export function computeSchedule(
             t += day.commuteMins;
 
             if (blockActualStart != null) t = blockActualStart;
-            pushPastGoogleEvents(block.dur);
 
             scheduled.push({
                 ...block,
@@ -159,12 +131,6 @@ export function computeSchedule(
             t += day.commuteMins + 15;
         } else {
             if (blockActualStart != null) t = blockActualStart;
-            pushPastGoogleEvents(block.dur);
-
-            // Check if 10 DM aim routine is placed before work
-            if (block.type === "aim" && t < day.workStart && isWorkday) {
-                aimInMorning = true;
-            }
 
             scheduled.push({
                 ...block,
@@ -175,9 +141,31 @@ export function computeSchedule(
         }
     }
 
-    // Push any remaining Google events that happen after all planner blocks
+    // Overlay Google events:
+    // If an event overlaps with a scheduled block, nest it inside the block.
+    // If it's in free time, push it as a standalone virtual block.
     for (const ev of sortedEvents) {
-        if (!processedEvents.has(ev.id)) {
+        const evStart = ev.startMins;
+        const evEnd = ev.endMins;
+        let overlaps = false;
+
+        for (const sb of scheduled) {
+            // Check overlap
+            if (evStart < sb.end && evEnd > sb.start) {
+                overlaps = true;
+                if (!sb.overlappingEvents) sb.overlappingEvents = [];
+                sb.overlappingEvents.push({
+                    id: `google-${ev.id}`,
+                    title: ev.title,
+                    startMins: ev.startMins,
+                    endMins: ev.endMins,
+                    color: ev.color,
+                    originalEvent: ev
+                });
+            }
+        }
+
+        if (!overlaps) {
             scheduled.push({
                 id: `google-${ev.id}`,
                 type: "google-calendar",
@@ -188,9 +176,9 @@ export function computeSchedule(
                 virtual: true,
                 source: "google",
                 color: ev.color,
+                allDay: ev.allDay,
                 originalEvent: ev
             });
-            processedEvents.add(ev.id);
         }
     }
 
@@ -198,7 +186,7 @@ export function computeSchedule(
     scheduled.sort((a, b) => a.start - b.start);
 
     // Identify gaps between scheduled items
-    const scheduledWithGaps: any[] = [];
+    const scheduledWithGaps: ScheduledBlock[] = [];
 
     // First, add carry-over blocks
     if (carryOverBlocks.length > 0) {
@@ -258,36 +246,11 @@ export function computeSchedule(
         scheduledWithGaps.push(curr);
     }
 
-    // Constraints & Warnings Validation
-    if (swimActive && aimInMorning && isWorkday) {
-        warnings.push("Not enough morning buffer for 10 DM Aim routine because Swimming is active! 10 DM needs 80 mins but swim leaves only ~60.");
-    }
+
 
     const sleepTime = t;
-    
-    let sleepDurationMins = 0;
-    if (day.actualSleepTime != null && day.actualSleepDate && day.actualWakeDate) {
-        const sleepDate = new Date(day.actualSleepDate);
-        const wakeDate = new Date(day.actualWakeDate || day.actualSleepDate);
-        let sleepAbsolute = sleepDate.getTime() / 60000 + (day.actualSleepTime % 1440);
-        let wakeAbsolute = wakeDate.getTime() / 60000 + ((day.actualWakeTime ?? day.wakeTime) % 1440);
-        
-        let diff = wakeAbsolute - sleepAbsolute;
-        
-        if (diff < 0) diff += 24 * 60;
-        
-        if (diff > 24 * 60) diff -= 24 * 60;
-        
-        sleepDurationMins = diff;
-    } else if (sleepTime <= 24 * 60) {
-        sleepDurationMins = (24 * 60 - sleepTime) + day.wakeTime;
-    } else {
-        const sleepNextDayMins = sleepTime - 24 * 60;
-        sleepDurationMins = day.wakeTime - sleepNextDayMins;
-    }
-
-    const nightSleepMins = sleepDurationMins;
-    sleepDurationMins += totalNapMins;
+    const nightSleepMins = getNightSleepDurationMins(day, sleepTime);
+    const sleepDurationMins = getTotalSleepDurationMins(day, sleepTime, totalNapMins);
 
     if (sleepDurationMins < day.sleepTarget) {
         warnings.push(`Sleep deficit! You are getting ${(sleepDurationMins / 60).toFixed(1)}h of total sleep, which is under your ${(day.sleepTarget / 60).toFixed(1)}h target.`);
@@ -307,7 +270,7 @@ export function computeSchedule(
     }
 
     // --- Export blocks that bleed past midnight for next day's carry-over ---
-    const carryOverForNextDay: any[] = [];
+    const carryOverForNextDay: ScheduledBlock[] = [];
     for (const block of scheduled) {
         if (block.end > 1440 && !block.virtual) {
             carryOverForNextDay.push({

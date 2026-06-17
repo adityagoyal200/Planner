@@ -2,6 +2,9 @@ import { useScheduleStore } from "../../store/useScheduleStore";
 import { useAuthStore } from "../../store/useAuthStore";
 import { setCloudUserId, forcePushToCloud } from "../../store/useScheduleStore";
 import { useState } from "react";
+import type { DayKey } from "../../store/useScheduleStore";
+import { toLocalISODate } from "../../utils/dateUtils";
+import { parseTimeInput } from "../../utils/timeUtils";
 
 const ACCENT_COLORS = [
     { id: "indigo", color: "#6366f1", label: "Indigo" },
@@ -34,13 +37,31 @@ export default function SettingsPage() {
 
     const day = week[selectedDay];
 
+    const DAY_LABELS: Record<DayKey, string> = {
+        mon: "Monday", tue: "Tuesday", wed: "Wednesday", thu: "Thursday",
+        fri: "Friday", sat: "Saturday", sun: "Sunday"
+    };
+
+    const applyToAllDays = () => {
+        const allDays: DayKey[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+        for (const d of allDays) {
+            if (d !== selectedDay) {
+                updateWakeTime(d, day.wakeTime);
+                updateCommute(d, day.commuteMins);
+                useScheduleStore.setState((state) => ({
+                    week: { ...state.week, [d]: { ...state.week[d], sleepTarget: day.sleepTarget }}
+                }));
+            }
+        }
+    };
+
     const handleExport = () => {
         const data = JSON.stringify(useScheduleStore.getState(), null, 2);
         const blob = new Blob([data], { type: "application/json" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `planner-backup-${new Date().toISOString().split("T")[0]}.json`;
+        a.download = `planner-backup-${toLocalISODate()}.json`;
         a.click();
         URL.revokeObjectURL(url);
     };
@@ -92,7 +113,7 @@ export default function SettingsPage() {
                     <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
                     <h2 className="text-sm font-bold text-zinc-300 mb-4">Account</h2>
                     <div className="flex items-center gap-4">
-                        <img src={user.picture} alt={user.name} className="w-12 h-12 rounded-full border-2 border-zinc-800" referrerPolicy="no-referrer" />
+                        <img src={user.picture || undefined} alt={user.name || undefined} className="w-12 h-12 rounded-full border-2 border-zinc-800" referrerPolicy="no-referrer" />
                         <div>
                             <div className="text-sm font-bold text-white">{user.name}</div>
                             <div className="text-xs text-zinc-500">{user.email}</div>
@@ -110,8 +131,9 @@ export default function SettingsPage() {
             {/* Schedule Defaults */}
             <div className="glass-card rounded-2xl p-5 relative overflow-hidden">
                 <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-blue-500/20 to-transparent" />
-                <h2 className="text-sm font-bold text-zinc-300 mb-4">Schedule Defaults</h2>
-                <div className="grid grid-cols-2 gap-4">
+                <h2 className="text-sm font-bold text-zinc-300 mb-1">Schedule — {DAY_LABELS[selectedDay]}</h2>
+                <p className="text-[10px] text-zinc-600 mb-4">These settings apply to the currently selected day. Use the button below to copy to all days.</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div>
                         <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Wake Time (24h)</label>
                         <input
@@ -122,10 +144,11 @@ export default function SettingsPage() {
                             key={`wake-${selectedDay}-${day.wakeTime}`}
                             onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
                             onBlur={(e) => {
-                                const val = e.target.value.trim();
-                                const parts = val.split(":").map(Number);
-                                if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-                                    updateWakeTime(selectedDay, parts[0] * 60 + parts[1]);
+                                const mins = parseTimeInput(e.target.value, 23);
+                                if (mins !== null) {
+                                    updateWakeTime(selectedDay, mins);
+                                } else {
+                                    e.target.value = minsToTime(day.wakeTime);
                                 }
                             }}
                             className="mt-1 w-full rounded-xl border border-zinc-800 bg-[#050505] p-3 text-white focus:border-zinc-600 focus:outline-none transition shadow-inner tabular-nums"
@@ -150,8 +173,6 @@ export default function SettingsPage() {
                         <select
                             value={day.sleepTarget}
                             onChange={(e) => {
-                                useScheduleStore.getState().updateBlock(selectedDay, day.blocks[0]?.id || "", {});
-                                // Update sleep target via direct state mutation
                                 useScheduleStore.setState((state) => ({
                                     week: { ...state.week, [selectedDay]: { ...state.week[selectedDay], sleepTarget: Number(e.target.value) }}
                                 }));
@@ -164,13 +185,19 @@ export default function SettingsPage() {
                         </select>
                     </div>
                 </div>
+                <button
+                    onClick={applyToAllDays}
+                    className="mt-4 w-full p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-xs font-bold text-indigo-400 hover:bg-indigo-500 hover:text-white transition-colors cursor-pointer"
+                >
+                    Apply to All Days
+                </button>
             </div>
 
             {/* Pomodoro */}
             <div className="glass-card rounded-2xl p-5 relative overflow-hidden">
                 <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-red-500/20 to-transparent" />
                 <h2 className="text-sm font-bold text-zinc-300 mb-4">Focus Timer</h2>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                     <div>
                         <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Work (min)</label>
                         <input type="number" value={pomodoroWork} min={5} max={90}
@@ -286,7 +313,7 @@ export default function SettingsPage() {
                 <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-emerald-500/20 to-transparent" />
                 <h2 className="text-sm font-bold text-zinc-300 mb-4">Data Management</h2>
                 <div className="space-y-3">
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <button onClick={handleExport} className="p-3 rounded-xl bg-zinc-900/50 border border-zinc-800/50 text-sm font-bold text-zinc-300 hover:bg-zinc-800 hover:border-zinc-700 transition-colors cursor-pointer">
                             📥 Export JSON
                         </button>

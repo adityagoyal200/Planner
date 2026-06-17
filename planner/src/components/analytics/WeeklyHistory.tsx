@@ -1,7 +1,7 @@
 import { useScheduleStore } from "../../store/useScheduleStore";
 
 export default function WeeklyHistory() {
-    const { weekHistory } = useScheduleStore();
+    const { weekHistory, viewWeekByKey, categories } = useScheduleStore();
 
     if (!weekHistory || weekHistory.length === 0) {
         return null;
@@ -17,50 +17,112 @@ export default function WeeklyHistory() {
             </h2>
             
             {sortedHistory.map((snapshot) => {
-                const { categoryBreakdown } = snapshot;
-                const aimHours = ((categoryBreakdown["aim"] || 0) / 60).toFixed(1);
-                const valHours = ((categoryBreakdown["val"] || categoryBreakdown["gaming"] || 0) / 60).toFixed(1);
-                const gymHours = ((categoryBreakdown["gym"] || categoryBreakdown["health"] || 0) / 60).toFixed(1);
+                const completionRate = snapshot.totalBlocks > 0
+                    ? Math.round((snapshot.completedBlocks / snapshot.totalBlocks) * 100)
+                    : 0;
+
+                // Build top categories from breakdown
+                const catEntries = Object.entries(snapshot.categoryBreakdown)
+                    .sort(([, a], [, b]) => b - a)
+                    .slice(0, 4);
+
+                // SVG ring for completion
+                const ringSize = 48;
+                const ringStroke = 4;
+                const ringRadius = (ringSize - ringStroke) / 2;
+                const ringCircumference = 2 * Math.PI * ringRadius;
+                const ringOffset = ringCircumference * (1 - completionRate / 100);
 
                 return (
-                    <div key={snapshot.id} className="glass-card rounded-2xl p-5 relative overflow-hidden group border border-zinc-800/30 hover:border-zinc-700/50 transition-colors">
-                        <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-zinc-500/20 to-transparent transition-opacity duration-500 opacity-50" />
+                    <div key={snapshot.id} className="glass-card rounded-2xl p-5 relative overflow-hidden group border border-zinc-800/30 hover:border-zinc-700/50 transition-all duration-300">
+                        <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-zinc-500/20 to-transparent" />
+                        <div className="absolute -right-12 -top-12 w-28 h-28 bg-indigo-500/5 rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
                         
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-md font-bold text-zinc-300">
-                                {snapshot.weekLabel}
-                            </h3>
-                            <div className="text-[10px] text-zinc-600 uppercase tracking-widest font-bold">
-                                Score: {snapshot.dayScore}%
+                        <div className="flex gap-4 relative z-10">
+                            {/* Completion ring */}
+                            <div className="relative shrink-0">
+                                <svg width={ringSize} height={ringSize} viewBox={`0 0 ${ringSize} ${ringSize}`}>
+                                    <circle
+                                        cx={ringSize / 2} cy={ringSize / 2} r={ringRadius}
+                                        fill="none" stroke="#1c1c1e" strokeWidth={ringStroke}
+                                    />
+                                    <circle
+                                        cx={ringSize / 2} cy={ringSize / 2} r={ringRadius}
+                                        fill="none"
+                                        stroke={completionRate >= 80 ? '#10b981' : completionRate >= 50 ? '#f59e0b' : '#ef4444'}
+                                        strokeWidth={ringStroke}
+                                        strokeDasharray={ringCircumference}
+                                        strokeDashoffset={ringOffset}
+                                        strokeLinecap="round"
+                                        transform={`rotate(-90 ${ringSize / 2} ${ringSize / 2})`}
+                                        className="transition-all duration-1000 ease-out"
+                                    />
+                                </svg>
+                                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                    <span className="text-xs font-black text-white">{completionRate}%</span>
+                                </div>
                             </div>
-                        </div>
 
-                        <div className="space-y-4">
-                            <div className="grid grid-cols-2 gap-3">
-                                <div className="bg-[#111116] p-3 rounded-xl border border-zinc-900/50">
-                                    <div className="text-xs font-medium text-zinc-500 mb-1">Total Sleep</div>
-                                    <div className="text-xl font-black text-zinc-200">{snapshot.totalSleepHours}h</div>
-                                    <div className="text-[10px] text-zinc-600 font-bold mt-1">Avg {snapshot.avgSleepHours}h/night</div>
+                            {/* Info */}
+                            <div className="flex-1 min-w-0">
+                                <div className="flex justify-between items-start mb-2">
+                                    <h3 className="text-sm font-bold text-zinc-200 truncate">
+                                        {snapshot.weekLabel}
+                                    </h3>
+                                    <button
+                                        onClick={() => viewWeekByKey(snapshot.weekKey)}
+                                        className="text-[9px] uppercase font-black tracking-widest text-indigo-400 hover:text-white bg-indigo-500/10 hover:bg-indigo-500/30 px-2.5 py-1 rounded-full border border-indigo-500/20 transition-all duration-200 cursor-pointer hover:scale-105 active:scale-95 shrink-0 ml-2"
+                                    >
+                                        View
+                                    </button>
                                 </div>
-                                <div className="bg-[#111116] p-3 rounded-xl border border-rose-900/10">
-                                    <div className="text-xs font-medium text-rose-500/70 mb-1">Sleep Debt</div>
-                                    <div className="text-xl font-black text-rose-400">{snapshot.sleepDebtHours}h</div>
-                                </div>
-                            </div>
 
-                            <div className="grid grid-cols-3 gap-2">
-                                <div className="text-center bg-zinc-900/30 rounded-lg p-2 border border-zinc-800/30">
-                                    <div className="text-[10px] uppercase font-bold text-zinc-500 mb-1">🎯 Aim</div>
-                                    <div className="text-sm font-bold text-zinc-300">{aimHours}h</div>
+                                {/* Stats row */}
+                                <div className="flex items-center gap-3 mb-3 flex-wrap">
+                                    <div className="flex items-center gap-1">
+                                        <span className="text-[10px]">✅</span>
+                                        <span className="text-[10px] font-bold text-zinc-400">
+                                            {snapshot.completedBlocks ?? 0}/{snapshot.totalBlocks ?? 0}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        <span className="text-[10px]">⚡</span>
+                                        <span className="text-[10px] font-bold text-amber-400">
+                                            {snapshot.xpEarned ?? 0} XP
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        <span className="text-[10px]">😴</span>
+                                        <span className="text-[10px] font-bold text-zinc-400">
+                                            {snapshot.avgSleepHours}h avg
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        <span className="text-[10px]">📊</span>
+                                        <span className="text-[10px] font-bold text-zinc-400">
+                                            {snapshot.dayScore}%
+                                        </span>
+                                    </div>
                                 </div>
-                                <div className="text-center bg-zinc-900/30 rounded-lg p-2 border border-zinc-800/30">
-                                    <div className="text-[10px] uppercase font-bold text-zinc-500 mb-1">🎮 Gaming</div>
-                                    <div className="text-sm font-bold text-zinc-300">{valHours}h</div>
-                                </div>
-                                <div className="text-center bg-zinc-900/30 rounded-lg p-2 border border-zinc-800/30">
-                                    <div className="text-[10px] uppercase font-bold text-zinc-500 mb-1">🏋️ Gym</div>
-                                    <div className="text-sm font-bold text-zinc-300">{gymHours}h</div>
-                                </div>
+
+                                {/* Category breakdown pills */}
+                                {catEntries.length > 0 && (
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                        {catEntries.map(([catId, mins]) => {
+                                            const cat = categories.find(c => c.id === catId);
+                                            const hours = (mins / 60).toFixed(1);
+                                            return (
+                                                <span
+                                                    key={catId}
+                                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-zinc-900/50 border border-zinc-800/50 text-[9px] font-bold text-zinc-400"
+                                                >
+                                                    <span>{cat?.emoji || '📦'}</span>
+                                                    <span>{hours}h</span>
+                                                </span>
+                                            );
+                                        })}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>

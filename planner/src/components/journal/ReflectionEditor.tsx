@@ -1,7 +1,9 @@
 import { useScheduleStore } from "../../store/useScheduleStore";
 
 export default function ReflectionEditor() {
-    const { selectedDay, journal, updateJournal } = useScheduleStore();
+    const { selectedDay, journalsByWeek, currentWeekKey, browsingWeekKey, updateJournal } = useScheduleStore();
+    const weekKey = browsingWeekKey || currentWeekKey;
+    const journal = journalsByWeek[weekKey] || {};
     const entry = journal?.[selectedDay] || { mood: null, energy: null, intention: "", reflection: "", gratitude: [] };
 
     const gratitude = entry.gratitude || [];

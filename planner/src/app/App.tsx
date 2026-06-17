@@ -3,38 +3,47 @@ import DashboardLayout from "../components/common/DashboardLayout";
 import LoginScreen from "../components/auth/LoginScreen";
 import { useAuthStore } from "../store/useAuthStore";
 import { hydrateFromCloud, setCloudUserId } from "../store/useScheduleStore";
+import { migrateLegacyBlobIfNeeded } from "../services/migrateLegacyBlob";
 
 export default function App() {
   const user = useAuthStore((s) => s.user);
-  const [syncing, setSyncing] = useState(false);
-  const [hydrated, setHydrated] = useState(false);
+  const session = useAuthStore((s) => s.session);
+  const [hydratedUserId, setHydratedUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!user) {
+    if (!user || !session) {
       setCloudUserId(null);
-      setHydrated(false);
       return;
     }
 
     // User is signed in — set up cloud sync and hydrate
-    setCloudUserId(user.sub);
-    setSyncing(true);
+    setCloudUserId(user.id);
+    let cancelled = false;
 
-    hydrateFromCloud(user.sub)
+    migrateLegacyBlobIfNeeded()
+      .catch((err) => console.error("Legacy migration failed:", err))
+      .finally(() => {
+        hydrateFromCloud(user.id)
       .catch((err) => console.error("Cloud sync failed:", err))
       .finally(() => {
-        setSyncing(false);
-        setHydrated(true);
+        if (!cancelled) {
+          setHydratedUserId(user.id);
+        }
       });
-  }, [user]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user, session]);
 
   // No user → login screen
-  if (!user) {
+  if (!user || !session) {
     return <LoginScreen />;
   }
 
   // User exists but still syncing from cloud
-  if (syncing || !hydrated) {
+  if (hydratedUserId !== user.id) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">

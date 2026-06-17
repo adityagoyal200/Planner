@@ -1,40 +1,36 @@
-import { useEffect, useRef } from "react";
-import { useAuthStore, decodeGoogleJwt } from "../../store/useAuthStore";
-
-const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+import { useEffect, useState } from "react";
+import { supabase } from "../../services/supabase";
+import { useAuthStore } from "../../store/useAuthStore";
 
 export default function LoginScreen() {
-    const { setUser } = useAuthStore();
-    const buttonRef = useRef<HTMLDivElement>(null);
+    const { setSession } = useAuthStore();
+    const [error, setError] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
-        const initGoogle = () => {
-            const google = (window as any).google;
-            if (!google?.accounts?.id) {
-                setTimeout(initGoogle, 300);
-                return;
-            }
+        // Hydrate from existing Supabase session if present
+        supabase.auth.getSession().then(({ data }) => setSession(data.session));
+        const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+            setSession(session);
+        });
+        return () => sub.subscription.unsubscribe();
+    }, [setSession]);
 
-            google.accounts.id.initialize({
-                client_id: CLIENT_ID,
-                callback: (response: { credential: string }) => {
-                    const user = decodeGoogleJwt(response.credential);
-                    setUser(user);
+    const signInWithGoogle = async () => {
+        setIsLoading(true);
+        setError(null);
+        try {
+            const { error } = await supabase.auth.signInWithOAuth({
+                provider: "google",
+                options: {
+                    redirectTo: window.location.origin,
                 },
             });
-
-            if (buttonRef.current) {
-                google.accounts.id.renderButton(buttonRef.current, {
-                    theme: "filled_black",
-                    size: "large",
-                    shape: "pill",
-                    text: "signin_with",
-                    width: 300,
-                });
-            }
-        };
-        initGoogle();
-    }, [setUser]);
+            if (error) setError(error.message);
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     return (
         <div className="min-h-screen bg-black flex items-center justify-center relative overflow-hidden">
@@ -62,10 +58,21 @@ export default function LoginScreen() {
                         </p>
                     </div>
 
-                    {/* Google Sign-In Button */}
                     <div className="flex justify-center">
-                        <div ref={buttonRef} />
+                        <button
+                            onClick={signInWithGoogle}
+                            disabled={isLoading}
+                            className="w-full rounded-xl bg-white text-black px-4 py-3 font-black shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:shadow-[0_0_30px_rgba(255,255,255,0.2)] transition-all duration-300 disabled:opacity-50"
+                        >
+                            {isLoading ? "Opening Google..." : "Continue with Google"}
+                        </button>
                     </div>
+
+                    {error && (
+                        <div className="mt-4 text-xs text-rose-400 font-bold text-center">
+                            {error}
+                        </div>
+                    )}
 
                     <div className="mt-8 pt-6 border-t border-zinc-800/50 text-center">
                         <p className="text-zinc-600 text-[11px] leading-relaxed">

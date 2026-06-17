@@ -1,6 +1,6 @@
 import { useScheduleStore } from "../../store/useScheduleStore";
 import { computeSchedule } from "../../engine/computeSchedule";
-import { getDateForDayKey } from "../../utils/dateUtils";
+import { getDateForDayKeyInWeek } from "../../utils/dateUtils";
 
 const CATEGORY_COLORS: Record<string, string> = {
     work: "#6366f1",
@@ -39,9 +39,9 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 export default function TimeDonut() {
-    const { selectedDay, week } = useScheduleStore();
+    const { selectedDay, week, currentWeekKey, browsingWeekKey } = useScheduleStore();
     const day = week[selectedDay];
-    const refDate = getDateForDayKey(selectedDay);
+    const refDate = getDateForDayKeyInWeek(selectedDay, browsingWeekKey || currentWeekKey);
     const { scheduled } = computeSchedule(day, [], { referenceDate: refDate });
 
     // Aggregate durations by category
@@ -70,7 +70,24 @@ export default function TimeDonut() {
     // SVG donut
     const cx = 80, cy = 80, r = 60, strokeWidth = 18;
     const circumference = 2 * Math.PI * r;
-    let offset = 0;
+    const segments = sorted.reduce<{
+        offset: number;
+        items: { cat: string; dashLength: number; gap: number; offset: number }[];
+    }>((acc, [cat, mins]) => {
+        const dashLength = (mins / totalMins) * circumference;
+        return {
+            offset: acc.offset + dashLength,
+            items: [
+                ...acc.items,
+                {
+                    cat,
+                    dashLength,
+                    gap: circumference - dashLength,
+                    offset: acc.offset,
+                },
+            ],
+        };
+    }, { offset: 0, items: [] }).items;
 
     // Productive hours (work, study, aim)
     const productiveMins = (cats["work"] || 0) + (cats["study"] || 0) + (cats["aim"] || 0);
@@ -82,7 +99,7 @@ export default function TimeDonut() {
             
             <h3 className="text-sm font-bold text-zinc-300 mb-4">Time Distribution</h3>
 
-            <div className="flex items-center gap-6">
+            <div className="flex flex-col sm:flex-row items-center gap-6">
                 {/* Donut */}
                 <div className="relative shrink-0">
                     <svg width="160" height="160" viewBox="0 0 160 160">
@@ -90,13 +107,7 @@ export default function TimeDonut() {
                         <circle cx={cx} cy={cy} r={r} fill="none" stroke="#1c1c1e" strokeWidth={strokeWidth} />
                         
                         {/* Segments */}
-                        {sorted.map(([cat, mins]) => {
-                            const pct = mins / totalMins;
-                            const dashLength = pct * circumference;
-                            const gap = circumference - dashLength;
-                            const currentOffset = offset;
-                            offset += dashLength;
-                            
+                        {segments.map(({ cat, dashLength, gap, offset }) => {
                             return (
                                 <circle
                                     key={cat}
@@ -107,7 +118,7 @@ export default function TimeDonut() {
                                     stroke={CATEGORY_COLORS[cat] || "#52525b"}
                                     strokeWidth={strokeWidth}
                                     strokeDasharray={`${dashLength} ${gap}`}
-                                    strokeDashoffset={-currentOffset}
+                                    strokeDashoffset={-offset}
                                     transform={`rotate(-90 ${cx} ${cy})`}
                                     className="transition-all duration-700"
                                     strokeLinecap="butt"

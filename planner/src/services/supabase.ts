@@ -7,6 +7,30 @@ export const supabase = createClient(supabaseUrl, supabaseKey);
 
 // ── Per-user cloud state ──
 
+export interface NormalizedCloudState {
+    weeks?: Record<string, unknown>;
+    week?: unknown;
+    weekHistory?: unknown;
+    currentWeekKey?: string;
+    journalsByWeek?: unknown;
+    categories?: unknown;
+    quickNotes?: unknown;
+    streak?: number;
+    lastCompletedDate?: string | null;
+    selectedDay?: string;
+    xp?: number;
+    earnedBadges?: unknown;
+    streakFreezes?: number;
+    streakFreezeUsedThisWeek?: boolean;
+    gamificationEnabled?: boolean;
+    pomodoroWork?: number;
+    pomodoroBreak?: number;
+    pomodoroLongBreak?: number;
+    pomodoroSessions?: number;
+    accentColor?: string;
+    compactMode?: boolean;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function fetchCloudState(userId: string): Promise<Record<string, any> | null> {
     try {
@@ -49,4 +73,15 @@ export async function saveCloudState(userId: string, stateData: Record<string, a
     } catch (err) {
         console.error('Network error saving cloud state:', err);
     }
+}
+
+/**
+ * Migration helper: read legacy blob stored under `planner_state` for the current session user.
+ * This is temporary and should be removed after all users are migrated to normalized tables.
+ */
+export async function fetchLegacyBlobForCurrentUser(): Promise<NormalizedCloudState | null> {
+    const { data: sess } = await supabase.auth.getSession();
+    const uid = sess.session?.user?.id;
+    if (!uid) return null;
+    return await fetchCloudState(uid) as NormalizedCloudState | null;
 }

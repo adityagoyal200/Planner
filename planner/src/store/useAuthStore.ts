@@ -1,26 +1,43 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import type { Session, User } from "@supabase/supabase-js";
 
-export interface GoogleUser {
-    sub: string;       // unique Google user ID
-    email: string;
-    name: string;
-    picture: string;
+export interface AuthUser {
+    id: string; // Supabase auth.uid()
+    email: string | null;
+    name: string | null;
+    picture: string | null;
 }
 
 interface AuthStore {
-    user: GoogleUser | null;
-    setUser: (user: GoogleUser | null) => void;
-    logout: () => void;
+    user: AuthUser | null;
+    session: Session | null;
+    setSession: (session: Session | null) => void;
+    logout: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthStore>()(
     persist(
         (set) => ({
             user: null,
-            setUser: (user) => set({ user }),
-            logout: () => {
-                set({ user: null });
+            session: null,
+            setSession: (session) => {
+                const u: User | null = session?.user ?? null;
+                const meta = (u?.user_metadata || {}) as Record<string, unknown>;
+                set({
+                    session,
+                    user: u ? {
+                        id: u.id,
+                        email: u.email ?? null,
+                        name: typeof meta.full_name === "string" ? meta.full_name : (typeof meta.name === "string" ? meta.name : null),
+                        picture: typeof meta.avatar_url === "string" ? meta.avatar_url : (typeof meta.picture === "string" ? meta.picture : null),
+                    } : null,
+                });
+            },
+            logout: async () => {
+                const { supabase } = await import("../services/supabase");
+                await supabase.auth.signOut();
+                set({ user: null, session: null });
                 localStorage.removeItem("planner-storage");
                 window.location.reload();
             },
@@ -30,19 +47,3 @@ export const useAuthStore = create<AuthStore>()(
         }
     )
 );
-
-/**
- * Decode a Google ID token (JWT) to extract user info.
- * We only need the payload (middle segment), no signature verification needed
- * since we trust Google's endpoint.
- */
-export function decodeGoogleJwt(credential: string): GoogleUser {
-    const payload = credential.split(".")[1];
-    const decoded = JSON.parse(atob(payload));
-    return {
-        sub: decoded.sub,
-        email: decoded.email,
-        name: decoded.name,
-        picture: decoded.picture,
-    };
-}

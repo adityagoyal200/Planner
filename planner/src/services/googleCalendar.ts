@@ -1,6 +1,8 @@
 // Google Calendar integration service
 // Uses Google Identity Services (GIS) for OAuth and Calendar REST API
 
+import type { GoogleTokenClient } from "../types/google";
+
 const SCOPES = "https://www.googleapis.com/auth/calendar.events";
 
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -17,16 +19,40 @@ export interface CalendarEvent {
     originalEnd: string | null;
 }
 
-let tokenClient: any = null;
+interface GoogleCalendarEventDate {
+    date?: string;
+    dateTime?: string;
+}
+
+interface GoogleCalendarEventItem {
+    id?: string;
+    summary?: string;
+    colorId?: string;
+    start?: GoogleCalendarEventDate;
+    end?: GoogleCalendarEventDate;
+}
+
+interface GoogleCalendarEventsResponse {
+    items?: GoogleCalendarEventItem[];
+}
+
+export interface GoogleEventUpdate {
+    start?: string;
+    end?: string;
+    summary?: string;
+}
+
+let tokenClient: GoogleTokenClient | null = null;
 
 export function initGoogleAuth(onTokenReceived: (token: string) => void): Promise<void> {
     return new Promise((resolve) => {
         const checkGsi = () => {
-            if ((window as any).google?.accounts?.oauth2) {
-                tokenClient = (window as any).google.accounts.oauth2.initTokenClient({
+            const oauth2 = window.google?.accounts?.oauth2;
+            if (oauth2) {
+                tokenClient = oauth2.initTokenClient({
                     client_id: CLIENT_ID,
                     scope: SCOPES,
-                    callback: (response: any) => {
+                    callback: (response) => {
                         if (response.access_token) {
                             onTokenReceived(response.access_token);
                         }
@@ -56,9 +82,7 @@ export function requestGoogleAccess(silent = false) {
  * Revoke the current token and sign out.
  */
 export function revokeGoogleAccess(token: string) {
-    if ((window as any).google?.accounts?.oauth2) {
-        (window as any).google.accounts.oauth2.revoke(token);
-    }
+    window.google?.accounts?.oauth2?.revoke(token);
 }
 
 /**
@@ -74,8 +98,19 @@ function isoToMins(isoStr: string): number {
  */
 export async function fetchTodayEvents(token: string): Promise<CalendarEvent[]> {
     const now = new Date();
-    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    return fetchEventsForDate(token, `${year}-${month}-${day}`);
+}
+
+/**
+ * Fetch events for a specific local date (YYYY-MM-DD) from the primary Google Calendar.
+ */
+export async function fetchEventsForDate(token: string, dateIso: string): Promise<CalendarEvent[]> {
+    const [year, month, day] = dateIso.split("-").map(Number);
+    const startOfDay = new Date(year, month - 1, day);
+    const endOfDay = new Date(year, month - 1, day + 1);
 
     const params = new URLSearchParams({
         timeMin: startOfDay.toISOString(),
@@ -99,22 +134,26 @@ export async function fetchTodayEvents(token: string): Promise<CalendarEvent[]> 
         throw new Error(`Calendar API error: ${res.status}`);
     }
 
-    const data = await res.json();
+    const data = await res.json() as GoogleCalendarEventsResponse;
     const events: CalendarEvent[] = [];
 
     for (const item of data.items || []) {
+        if (!item.id || !item.start || !item.end) continue;
         const isAllDay = !!item.start?.date && !item.start?.dateTime;
+        const startValue = isAllDay ? item.start.date : item.start.dateTime;
+        const endValue = isAllDay ? item.end.date : item.end.dateTime;
+        if (!startValue || !endValue) continue;
 
         events.push({
             id: item.id,
             title: item.summary || "Untitled Event",
-            startMins: isAllDay ? 0 : isoToMins(item.start.dateTime),
-            endMins: isAllDay ? 24 * 60 : isoToMins(item.end.dateTime),
+            startMins: isAllDay ? 0 : isoToMins(startValue),
+            endMins: isAllDay ? 24 * 60 : isoToMins(endValue),
             color: item.colorId ? getGoogleColor(item.colorId) : "#4285f4",
             allDay: isAllDay,
             source: "google",
-            originalStart: isAllDay ? item.start.date : item.start.dateTime,
-            originalEnd: isAllDay ? item.end.date : item.end.dateTime,
+            originalStart: startValue,
+            originalEnd: endValue,
         });
     }
 
@@ -127,10 +166,10 @@ export async function fetchTodayEvents(token: string): Promise<CalendarEvent[]> 
 export async function updateGoogleEvent(
     token: string,
     eventId: string,
-    updates: { start?: string; end?: string; summary?: string }
+    updates: GoogleEventUpdate
 ) {
     // We use PATCH to only update the provided fields
-    const body: any = {};
+    const body: { start?: { dateTime: string }; end?: { dateTime: string }; summary?: string } = {};
     if (updates.start) body.start = { dateTime: updates.start };
     if (updates.end) body.end = { dateTime: updates.end };
     if (updates.summary) body.summary = updates.summary;

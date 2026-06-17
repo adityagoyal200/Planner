@@ -1,7 +1,8 @@
 import type { DayData } from "../types/schedule";
 import type { DayKey } from "../store/useScheduleStore";
 import { computeSchedule } from "./computeSchedule";
-import { getDateForDayKey } from "../utils/dateUtils";
+import { getDateForDayKeyInWeek } from "../utils/dateUtils";
+import { getTotalSleepDurationMins } from "../utils/sleepUtils";
 
 export const XP_ACTIONS = {
     BLOCK_COMPLETE: 10,
@@ -75,39 +76,25 @@ export function getLevelInfo(xp: number) {
 export function computeDayXP(
     day: DayData,
     dayKey: DayKey,
-    streak: number
+    streak: number,
+    weekKey: string
 ): number {
     let xp = 0;
-    const refDate = getDateForDayKey(dayKey);
+    const refDate = getDateForDayKeyInWeek(dayKey, weekKey);
     const { sleepTime, totalNapMins } = computeSchedule(day, [], { referenceDate: refDate });
 
-    // XP for each enabled block
-    const onBlocks = day.blocks.filter(b => b.on).length;
-    xp += onBlocks * XP_ACTIONS.BLOCK_COMPLETE;
+    // XP for each completed block
+    const completedBlocks = day.blocks.filter(b => b.completed && b.on).length;
+    xp += completedBlocks * XP_ACTIONS.BLOCK_COMPLETE;
 
     // Perfect day bonus
-    const totalBlocks = day.blocks.length;
-    if (totalBlocks > 0 && onBlocks === totalBlocks) {
+    const activeBlocksCount = day.blocks.filter(b => b.on).length;
+    if (activeBlocksCount > 0 && completedBlocks === activeBlocksCount) {
         xp += XP_ACTIONS.PERFECT_DAY;
     }
 
     // Sleep target hit
-    const wakeMins = day.actualWakeTime ?? day.wakeTime;
-    const effectiveSleep = day.actualSleepTime ?? sleepTime;
-    let sleepDur = 0;
-    if (day.actualSleepTime != null && day.actualSleepDate && day.actualWakeDate) {
-        const sd = new Date(day.actualSleepDate).getTime() / 60000 + (day.actualSleepTime % 1440);
-        const wd = new Date(day.actualWakeDate).getTime() / 60000 + (wakeMins % 1440);
-        let diff = wd - sd;
-        if (diff < 0) diff += 1440;
-        if (diff > 1440) diff -= 1440;
-        sleepDur = diff;
-    } else if (effectiveSleep <= 1440) {
-        sleepDur = (1440 - effectiveSleep) + wakeMins;
-    } else {
-        sleepDur = wakeMins - (effectiveSleep - 1440);
-    }
-    sleepDur += totalNapMins;
+    const sleepDur = getTotalSleepDurationMins(day, sleepTime, totalNapMins);
 
     if (sleepDur >= day.sleepTarget) {
         xp += XP_ACTIONS.SLEEP_TARGET_HIT;
@@ -119,7 +106,7 @@ export function computeDayXP(
     }
 
     // Streak bonus
-    if (streak > 0) {
+    if (streak > 0 && completedBlocks > 0) {
         xp += Math.min(streak, 30) * XP_ACTIONS.STREAK_DAILY;
     }
 
@@ -128,12 +115,13 @@ export function computeDayXP(
 
 export function computeWeekXP(
     week: Record<DayKey, DayData>,
-    streak: number
+    streak: number,
+    weekKey: string
 ): number {
     const days: DayKey[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
     let total = 0;
     for (const dk of days) {
-        total += computeDayXP(week[dk], dk, streak);
+        total += computeDayXP(week[dk], dk, streak, weekKey);
     }
     return total;
 }

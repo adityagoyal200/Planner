@@ -4,27 +4,16 @@ import { AlertCircle, Trash2, Clock, Plus, GripVertical } from "lucide-react";
 import { computeSchedule } from "../../engine/computeSchedule";
 import { useScheduleStore } from "../../store/useScheduleStore";
 import { formatTime } from "../../utils/formatTime";
-import { getDateForDayKey, getDaysDiff } from "../../utils/dateUtils";
+import { addDaysToISODate, addWeeksToMondayKey, getDateForDayKeyInWeek, getDaysDiff, parseISODate } from "../../utils/dateUtils";
 import BlockTypePicker from "./BlockTypePicker";
 import type { BlockType } from "../../types/block";
+import { minsToTimeStr, parseTimeInput } from "../../utils/timeUtils";
 
 import { nanoid } from "nanoid";
 
-function minsToTimeStr(mins: number) {
-    const positiveMins = ((mins % 1440) + 1440) % 1440;
-    const h = Math.floor(positiveMins / 60);
-    const m = positiveMins % 60;
-    return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
-}
-
-function timeStrToMins(timeStr: string) {
-    if (!timeStr) return null;
-    const [h, m] = timeStr.split(":").map(Number);
-    return h * 60 + m;
-}
-
 export default function Timeline() {
-    const { week, selectedDay, updateBlock, removeBlock, reorderBlocks, insertBlock, setFocusBlock, focusBlockId, calendarEvents, categories } = useScheduleStore();
+    const { week, selectedDay, updateBlock, removeBlock, reorderBlocks, insertBlock, setFocusBlock, focusBlockId, calendarEvents, categories, browsingWeekKey, currentWeekKey } = useScheduleStore();
+    const isReadOnly = !!browsingWeekKey;
     const day = week[selectedDay];
     const [showPicker, setShowPicker] = useState(false);
     const [, setTick] = useState(0);
@@ -37,16 +26,29 @@ export default function Timeline() {
 
     if (!day) return null;
 
-    const isToday = selectedDay === new Date().toLocaleDateString("en-US", { weekday: "short" }).toLowerCase();
-    const todaysEvents = isToday ? calendarEvents : [];
+    const viewedWeekKey = browsingWeekKey || currentWeekKey;
+    const refDate = getDateForDayKeyInWeek(selectedDay, viewedWeekKey);
+    const todaysEvents = calendarEvents;
 
     const days = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
     const currentIdx = days.indexOf(selectedDay);
     const prevDayKey = days[(currentIdx - 1 + 7) % 7] as keyof typeof week;
-    const prevDayData = week[prevDayKey];
     
-    const refDate = getDateForDayKey(selectedDay);
-    const prevRefDate = getDateForDayKey(prevDayKey);
+    let prevDayData = week[prevDayKey];
+    if (selectedDay === "mon") {
+        const prevWeekKey = addWeeksToMondayKey(viewedWeekKey, -1);
+        const prevWeek = useScheduleStore.getState().weeks[prevWeekKey];
+        if (prevWeek) {
+            prevDayData = prevWeek["sun"];
+        } else {
+            const historyEntry = useScheduleStore.getState().weekHistory.find(s => s.weekKey === prevWeekKey);
+            if (historyEntry) {
+                prevDayData = historyEntry.weekData["sun"];
+            }
+        }
+    }
+
+    const prevRefDate = addDaysToISODate(refDate, -1);
     
     // We need to compute prev day to get its carry over
     const prevResult = computeSchedule(prevDayData, [], { referenceDate: prevRefDate });
@@ -62,12 +64,12 @@ export default function Timeline() {
         if (!destination) return;
         if (source.droppableId === destination.droppableId && source.index === destination.index) return;
 
-        const draggableBlocks = scheduled.filter((b: any) => !b.virtual);
+        const draggableBlocks = scheduled.filter((b) => !b.virtual);
 
         if (source.droppableId === "palette" && destination.droppableId === "timeline") {
             const type = draggableId.replace("palette-", "") as BlockType;
             const newId = nanoid();
-            const orderedIds = draggableBlocks.map((b: any) => b.id);
+            const orderedIds = draggableBlocks.map((b) => b.id);
             orderedIds.splice(destination.index, 0, newId);
             insertBlock(selectedDay, type, newId, orderedIds);
             setShowPicker(false);
@@ -75,7 +77,7 @@ export default function Timeline() {
         }
 
         if (source.droppableId === "timeline" && destination.droppableId === "timeline") {
-            const orderedIds = draggableBlocks.map((b: any) => b.id);
+            const orderedIds = draggableBlocks.map((b) => b.id);
             const [removed] = orderedIds.splice(source.index, 1);
             orderedIds.splice(destination.index, 0, removed);
             reorderBlocks(selectedDay, orderedIds);
@@ -90,22 +92,24 @@ export default function Timeline() {
                         <h2 className="text-3xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-zinc-500">
                             Schedule
                         </h2>
-                        <p className="text-zinc-500 mt-1 font-medium text-sm">
-                            Edit start times to add buffers • Drag icons to insert
+                        <p className="text-zinc-500 mt-1 font-medium text-[10px] sm:text-sm leading-tight">
+                            {isReadOnly ? 'Viewing a past week — read only' : 'Edit start times to add buffers • Drag icons to insert'}
                         </p>
                     </div>
-                    <div className="relative">
-                        <button
-                            onClick={() => setShowPicker(!showPicker)}
-                            className="rounded-xl bg-white text-black px-3 py-2 sm:px-5 sm:py-2.5 font-bold shadow-[0_0_20px_rgba(255,255,255,0.2)] hover:shadow-[0_0_30px_rgba(255,255,255,0.4)] transition-all duration-300 hover:scale-105 cursor-pointer flex items-center gap-1 sm:gap-2"
-                        >
-                            <Plus className="w-5 h-5" />
-                            <span className="hidden sm:inline">Add Block</span>
-                        </button>
-                        {showPicker && (
-                            <BlockTypePicker onClose={() => setShowPicker(false)} />
-                        )}
-                    </div>
+                    {!isReadOnly && (
+                        <div className="relative">
+                            <button
+                                onClick={() => setShowPicker(!showPicker)}
+                                className="rounded-xl bg-white text-black px-3 py-2 sm:px-5 sm:py-2.5 font-bold shadow-[0_0_20px_rgba(255,255,255,0.2)] hover:shadow-[0_0_30px_rgba(255,255,255,0.4)] transition-all duration-300 hover:scale-105 cursor-pointer flex items-center gap-1 sm:gap-2"
+                            >
+                                <Plus className="w-5 h-5" />
+                                <span className="hidden sm:inline">Add Block</span>
+                            </button>
+                            {showPicker && (
+                                <BlockTypePicker onClose={() => setShowPicker(false)} />
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 {warnings.length > 0 && (
@@ -135,15 +139,15 @@ export default function Timeline() {
                             >
                                 {(() => {
                                     let draggableIndex = 0;
-                                    return scheduled.map((block: any, index: number) => {
+                                    return scheduled.map((block, index: number) => {
                                         const isVirtual = !!block.virtual;
                                         const isGap = block.type === "free" && isVirtual && block.source !== "google";
                                         const isGoogle = block.source === "google";
                                         const isActive = index === nowBlockIndex;
 
                                         if (isGap) {
-                                            const nextBlock = scheduled.find((b: any, i: number) => i > index && !b.virtual);
-                                            const causedByManualBuffer = nextBlock && (nextBlock as any).actualStart != null;
+                                            const nextBlock = scheduled.find((b, i) => i > index && !b.virtual);
+                                            const causedByManualBuffer = nextBlock && nextBlock.actualStart != null;
                                             
                                             return (
                                                 <div key={`gap-${index}`} className="flex items-center gap-3 sm:gap-6 py-2 group/gap">
@@ -205,37 +209,21 @@ export default function Timeline() {
                                                                 onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
                                                                 onBlur={(e) => {
                                                                     const val = e.target.value.trim();
-                                                                    let minsOfDay = timeStrToMins(val);
-                                                                    if (minsOfDay === null) {
-                                                                        const numVal = parseInt(val, 10);
-                                                                        if (!isNaN(numVal) && numVal >= 0 && numVal <= 47) {
-                                                                            minsOfDay = numVal * 60;
-                                                                        }
-                                                                    }
+                                                                    // Only allow editing within a 0..23h day; cross-day is done via the date picker.
+                                                                    let minsOfDay = parseTimeInput(val, 23);
                                                                     if (minsOfDay !== null) {
-                                                                        let extraDays = Math.floor(minsOfDay / 1440);
-                                                                        minsOfDay = minsOfDay % 1440;
-                                                                        
                                                                         let blockDateStr = block.actualStartDate || refDate;
-                                                                        
-                                                                        if (extraDays > 0) {
-                                                                            const d = new Date(refDate);
-                                                                            d.setDate(d.getDate() + extraDays);
-                                                                            blockDateStr = d.toISOString().split("T")[0];
-                                                                        } else {
-                                                                            const currentMinsOfDay = ((block.start % 1440) + 1440) % 1440;
-                                                                            if (minsOfDay < 360 && currentMinsOfDay >= 720 && !block.actualStartDate) {
-                                                                                const nextDay = new Date(refDate);
-                                                                                nextDay.setDate(nextDay.getDate() + 1);
-                                                                                blockDateStr = nextDay.toISOString().split("T")[0];
-                                                                            }
-                                                                        }
+                                                                        // If user enters an early-morning time for a block that is currently on the next day,
+                                                                        // preserve the existing actualStartDate if it exists. Otherwise keep it on refDate.
                                                                         
                                                                         const dayDiff = getDaysDiff(blockDateStr, refDate);
                                                                         const absoluteMins = dayDiff * 1440 + minsOfDay;
                                                                         
                                                                         if (isGoogle) {
-                                                                            useScheduleStore.getState().syncCalendarEventUpdate(block.originalEvent.id, { startMins: absoluteMins, endMins: absoluteMins + block.dur });
+                                                                            const originalEventId = block.originalEvent?.id;
+                                                                            if (originalEventId) {
+                                                                                useScheduleStore.getState().syncCalendarEventUpdate(originalEventId, { startMins: absoluteMins, endMins: absoluteMins + block.dur });
+                                                                            }
                                                                         } else if (!isVirtual) {
                                                                             updateBlock(selectedDay, block.id, { actualStart: minsOfDay, actualStartDate: blockDateStr });
                                                                         }
@@ -249,7 +237,7 @@ export default function Timeline() {
                                                             <div className="text-[10px] text-zinc-600 mt-0.5 tabular-nums text-right w-full">
                                                                 {(() => {
                                                                     const dateStr = block.actualStartDate || refDate;
-                                                                    const d = new Date(dateStr + "T00:00:00");
+                                                                    const d = parseISODate(dateStr);
                                                                     return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
                                                                 })()}
                                                             </div>
@@ -264,7 +252,10 @@ export default function Timeline() {
                                                                         const dayDiff = getDaysDiff(newDate, refDate);
                                                                         const absoluteMins = dayDiff * 1440 + currentMinsOfDay;
                                                                         if (isGoogle) {
-                                                                            useScheduleStore.getState().syncCalendarEventUpdate(block.originalEvent.id, { startMins: absoluteMins, endMins: absoluteMins + block.dur });
+                                                                            const originalEventId = block.originalEvent?.id;
+                                                                            if (originalEventId) {
+                                                                                useScheduleStore.getState().syncCalendarEventUpdate(originalEventId, { startMins: absoluteMins, endMins: absoluteMins + block.dur });
+                                                                            }
                                                                         } else {
                                                                             updateBlock(selectedDay, block.id, { actualStart: currentMinsOfDay, actualStartDate: newDate });
                                                                         }
@@ -302,6 +293,7 @@ export default function Timeline() {
                                                         ${isActive && !isVirtual ? 'shadow-[0_0_30px_rgba(255,255,255,0.05)] border-zinc-500 scale-[1.01]' : 'border-white/5'}
                                                         ${isDragging ? 'border-zinc-400 shadow-[0_0_40px_rgba(0,0,0,0.5)] scale-105 z-50' : ''}
                                                         ${(!isVirtual || isGoogle) && focusBlockId === block.id ? 'ring-1 ring-indigo-500/60 border-indigo-500/40 shadow-[0_0_30px_rgba(99,102,241,0.15)] scale-[1.02] z-40' : ''}
+                                                        ${!isVirtual && block.completed ? 'border-emerald-500/30 bg-emerald-950/5 shadow-[0_0_15px_rgba(16,185,129,0.03)]' : ''}
                                                     `}
                                                     style={isGoogle ? {
                                                         background: `linear-gradient(135deg, ${block.color}15 0%, rgba(5,5,5,0.5) 100%)`,
@@ -321,45 +313,82 @@ export default function Timeline() {
 
                                                     <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-[0.02] transition-opacity duration-300 pointer-events-none" />
                                                     
-                                                <div className="flex items-center justify-between relative z-10 gap-4">
-                                                    <div className="flex-1 flex items-center">
-                                                        <div className="flex items-center gap-4 flex-1">
-                                                            <div className={`text-3xl drop-shadow-md shrink-0 pointer-events-none ${isEditableVirtual ? 'text-2xl opacity-70' : ''}`}>
-                                                                {isGoogle ? (
-                                                                    <div className="w-8 h-8 rounded bg-zinc-900 flex items-center justify-center border" style={{ borderColor: `${block.color}50`, color: block.color }}>
-                                                                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                                                                            <line x1="16" y1="2" x2="16" y2="6" />
-                                                                            <line x1="8" y1="2" x2="8" y2="6" />
-                                                                            <line x1="3" y1="10" x2="21" y2="10" />
-                                                                        </svg>
-                                                                    </div>
-                                                                ) : (
-                                                                    categories.find(c => c.id === block.type)?.emoji || "⚡"
-                                                                )}
-                                                            </div>
-                                                            <div className="flex-1">
-                                                                {canEditLabel ? (
-                                                                    <input
-                                                                        type="text"
-                                                                        defaultValue={block.label}
-                                                                        onBlur={(e) => {
-                                                                            if (e.target.value !== block.label) {
-                                                                                updateBlock(selectedDay, block.id, { label: e.target.value });
+                                                    <div className="flex items-center justify-between relative z-10 gap-4">
+                                                        <div className="flex-1 flex items-center">
+                                                            <div className="flex items-center gap-4 flex-1">
+                                                                {!isVirtual && !isReadOnly && (
+                                                                    <button
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            const nextCompleted = !block.completed;
+                                                                            updateBlock(selectedDay, block.id, { completed: nextCompleted });
+                                                                            if (nextCompleted) {
+                                                                                useScheduleStore.getState().addXP(10);
+                                                                            } else {
+                                                                                useScheduleStore.getState().addXP(-10);
                                                                             }
                                                                         }}
-                                                                        className={`w-full bg-transparent border-none px-0 py-1 font-bold text-xl tracking-tight focus:outline-none focus:ring-0 ${block.on === false ? 'text-zinc-600 line-through' : 'text-zinc-100 group-hover:text-white transition-colors'}`}
-                                                                    />
-                                                                ) : (
-                                                                    <div className={`font-bold tracking-tight px-0 py-1 ${isEditableVirtual ? 'text-lg text-zinc-500' : 'text-xl text-zinc-300'}`} style={isGoogle ? { color: block.color } : {}}>
-                                                                        {block.label}
+                                                                        className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all cursor-pointer mr-1 shrink-0
+                                                                            ${block.completed 
+                                                                                ? 'bg-emerald-500 border-emerald-500 text-black shadow-[0_0_10px_rgba(16,185,129,0.4)]' 
+                                                                                : 'border-zinc-600 hover:border-zinc-400 hover:bg-zinc-800/50'
+                                                                            }`}
+                                                                        title={block.completed ? "Mark incomplete" : "Mark complete"}
+                                                                    >
+                                                                        {block.completed && (
+                                                                            <svg className="w-3.5 h-3.5 stroke-[3.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                <polyline points="20 6 9 17 4 12" />
+                                                                            </svg>
+                                                                        )}
+                                                                    </button>
+                                                                )}
+                                                                {!isVirtual && isReadOnly && block.completed && (
+                                                                    <div className="w-6 h-6 rounded-full bg-emerald-500 border-2 border-emerald-500 flex items-center justify-center mr-1 shrink-0">
+                                                                        <svg className="w-3.5 h-3.5 stroke-[3.5] text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                            <polyline points="20 6 9 17 4 12" />
+                                                                        </svg>
                                                                     </div>
                                                                 )}
+                                                                {!isVirtual && isReadOnly && !block.completed && (
+                                                                    <div className="w-6 h-6 rounded-full border-2 border-zinc-700 mr-1 shrink-0" />
+                                                                )}
+
+                                                                <div className={`text-3xl drop-shadow-md shrink-0 pointer-events-none ${isEditableVirtual ? 'text-2xl opacity-70' : ''}`}>
+                                                                    {isGoogle ? (
+                                                                        <div className="w-8 h-8 rounded bg-zinc-900 flex items-center justify-center border" style={{ borderColor: `${block.color}50`, color: block.color }}>
+                                                                            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                                                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                                                                                <line x1="16" y1="2" x2="16" y2="6" />
+                                                                                <line x1="8" y1="2" x2="8" y2="6" />
+                                                                                <line x1="3" y1="10" x2="21" y2="10" />
+                                                                            </svg>
+                                                                        </div>
+                                                                    ) : (
+                                                                        categories.find(c => c.id === block.type)?.emoji || "⚡"
+                                                                    )}
+                                                                </div>
+                                                                <div className="flex-1">
+                                                                    {canEditLabel ? (
+                                                                        <input
+                                                                            type="text"
+                                                                            defaultValue={block.label}
+                                                                            onBlur={(e) => {
+                                                                                if (e.target.value !== block.label) {
+                                                                                    updateBlock(selectedDay, block.id, { label: e.target.value });
+                                                                                }
+                                                                            }}
+                                                                            className={`w-full bg-transparent border-none px-0 py-1 font-bold text-xl tracking-tight focus:outline-none focus:ring-0 ${block.on === false ? 'text-zinc-600 line-through' : block.completed ? 'text-emerald-400 line-through opacity-70' : 'text-zinc-100 group-hover:text-white transition-colors'}`}
+                                                                        />
+                                                                    ) : (
+                                                                        <div className={`font-bold tracking-tight px-0 py-1 ${isEditableVirtual ? 'text-lg text-zinc-500' : block.completed ? 'text-emerald-400 line-through opacity-70 text-xl' : 'text-xl text-zinc-300'}`} style={isGoogle ? { color: block.color } : {}}>
+                                                                            {block.label}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
                                                             </div>
                                                         </div>
-                                                    </div>
 
-                                                    <div className="flex items-center gap-4 text-right shrink-0">
+                                                        <div className="flex items-center gap-4 text-right shrink-0">
                                                             {canEditDur ? (
                                                                 <div className="flex items-center group/dur">
                                                                     <input
@@ -377,7 +406,10 @@ export default function Timeline() {
                                                                             const val = parseInt(e.target.value, 10);
                                                                             if (!isNaN(val) && val > 0 && val !== block.dur) {
                                                                                 if (isGoogle) {
-                                                                                    useScheduleStore.getState().syncCalendarEventUpdate(block.originalEvent.id, { endMins: block.start + val });
+                                                                                    const originalEventId = block.originalEvent?.id;
+                                                                                    if (originalEventId) {
+                                                                                        useScheduleStore.getState().syncCalendarEventUpdate(originalEventId, { endMins: block.start + val });
+                                                                                    }
                                                                                 } else if (isEditableVirtual && block.id.startsWith("commute")) {
                                                                                     if (block.id === "commute-home") {
                                                                                         useScheduleStore.getState().updateCommute(selectedDay, Math.max(0, val - 15));
@@ -403,7 +435,7 @@ export default function Timeline() {
                                                                 </div>
                                                             )}
 
-                                                            {(!isVirtual || isEditableVirtual) && (
+                                                            {(!isVirtual || isEditableVirtual) && !isReadOnly && (
                                                                 <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                                                     {!isEditableVirtual && (
                                                                         <button 
@@ -439,6 +471,31 @@ export default function Timeline() {
                                                             )}
                                                         </div>
                                                     </div>
+
+                                                    {block.overlappingEvents && block.overlappingEvents.length > 0 && (
+                                                        <div className="mt-3 pt-3 border-t border-white/5 space-y-2 relative z-10">
+                                                            <div className="text-[10px] uppercase font-bold tracking-widest text-zinc-500 flex items-center gap-1.5 select-none">
+                                                                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+                                                                Calendar Overlaps
+                                                            </div>
+                                                            <div className="grid gap-1.5">
+                                                                {block.overlappingEvents.map((ev) => (
+                                                                    <div 
+                                                                        key={ev.id}
+                                                                        className="flex items-center justify-between p-2.5 rounded-xl bg-black/40 border border-white/5 hover:border-white/10 transition-colors"
+                                                                    >
+                                                                        <div className="flex items-center gap-2">
+                                                                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: ev.color || '#3b82f6' }} />
+                                                                            <span className="text-xs font-semibold text-zinc-300">{ev.title}</span>
+                                                                        </div>
+                                                                        <span className="text-[10px] font-medium text-zinc-500 tabular-nums">
+                                                                            {minsToTimeStr(ev.startMins)} - {minsToTimeStr(ev.endMins)}
+                                                                        </span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         );
