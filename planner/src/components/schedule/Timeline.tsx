@@ -88,9 +88,9 @@ export default function Timeline() {
     return (
         <DragDropContext onDragEnd={onDragEnd}>
             <div className="space-y-6 pb-32 no-select">
-                <div className="flex items-center justify-between relative z-50">
-                    <div>
-                        <h2 className="text-3xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-zinc-500">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between relative z-50">
+                    <div className="min-w-0">
+                        <h2 className="text-2xl sm:text-3xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-zinc-500">
                             Schedule
                         </h2>
                         <p className="text-zinc-500 mt-1 font-medium text-[10px] sm:text-sm leading-tight">
@@ -98,7 +98,7 @@ export default function Timeline() {
                         </p>
                     </div>
                     {!isReadOnly && (
-                        <div className="relative">
+                        <div className="relative shrink-0 self-start sm:self-auto">
                             <button
                                 onClick={() => setShowPicker(!showPicker)}
                                 className="rounded-xl bg-white text-black px-3 py-2 sm:px-5 sm:py-2.5 font-bold shadow-[0_0_20px_rgba(255,255,255,0.2)] hover:shadow-[0_0_30px_rgba(255,255,255,0.4)] transition-all duration-300 hover:scale-105 cursor-pointer flex items-center gap-1 sm:gap-2"
@@ -194,11 +194,11 @@ export default function Timeline() {
                                         const canEditLabel = !isVirtual;
 
                                         const renderBlockContent = (isDragging = false) => (
-                                            <div className={`flex items-stretch gap-4 sm:gap-6 relative ${isVirtual && !isEditableVirtual ? 'opacity-50' : isEditableVirtual ? 'opacity-70' : (block.on === false ? 'opacity-40' : '')} ${isDragging ? 'shadow-2xl scale-105 z-50' : ''}`}>
+                                            <div className={`timeline-block-row flex items-stretch gap-3 sm:gap-4 md:gap-6 relative ${isVirtual && !isEditableVirtual ? 'opacity-50' : isEditableVirtual ? 'opacity-70' : (block.on === false ? 'opacity-40' : '')} ${isDragging ? 'shadow-2xl scale-105 z-50' : ''}`}>
                                                 {renderNowLine}
 
                                                 {/* Left Timeline Time + Date */}
-                                                <div className="w-28 flex flex-col items-end pt-4 text-sm font-bold text-zinc-500 tracking-wider relative group/time shrink-0">
+                                                <div className="timeline-time-col w-20 sm:w-24 md:w-28 flex flex-col items-end pt-2 sm:pt-4 text-sm font-bold text-zinc-500 tracking-wider relative group/time shrink-0">
                                                     {canEditTime ? (
                                                         <>
                                                             <input 
@@ -238,11 +238,18 @@ export default function Timeline() {
                                                                 className={`w-full bg-transparent text-right border-none p-0 focus:outline-none focus:ring-0 text-[13px] tabular-nums ${isActive ? "text-white" : isEditableVirtual ? "text-zinc-600" : "text-zinc-500"} hover:text-white cursor-pointer transition-all`}
                                                                 title="Edit start time (24h, e.g. 21:00)"
                                                             />
-                                                            <div className="text-[10px] text-zinc-600 mt-0.5 tabular-nums text-right w-full">
+                                                            <div className="text-[10px] text-zinc-600 mt-0.5 tabular-nums text-right w-full hidden sm:block">
                                                                 {(() => {
                                                                     const dateStr = block.actualStartDate || refDate;
                                                                     const d = parseISODate(dateStr);
                                                                     return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+                                                                })()}
+                                                            </div>
+                                                            <div className="text-[10px] text-zinc-600 tabular-nums sm:hidden">
+                                                                {(() => {
+                                                                    const dateStr = block.actualStartDate || refDate;
+                                                                    const d = parseISODate(dateStr);
+                                                                    return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
                                                                 })()}
                                                             </div>
                                                             {!isEditableVirtual && (
@@ -284,7 +291,7 @@ export default function Timeline() {
                                                             )}
                                                         </div>
                                                     )}
-                                                    <div className="text-[11px] text-zinc-700 mt-1 tabular-nums">{formatTime(block.end)}</div>
+                                                    <div className="text-[11px] text-zinc-700 mt-1 tabular-nums time-end">{formatTime(block.end)}</div>
                                                 </div>
 
                                                 {/* Block Card */}
@@ -317,9 +324,9 @@ export default function Timeline() {
 
                                                     <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-[0.02] transition-opacity duration-300 pointer-events-none" />
                                                     
-                                                    <div className="flex items-center justify-between relative z-10 gap-4">
-                                                        <div className="flex-1 flex items-center">
-                                                            <div className="flex items-center gap-4 flex-1">
+                                                    <div className="timeline-block-header flex flex-col sm:flex-row sm:items-center sm:justify-between relative z-10 gap-3 sm:gap-4 min-w-0">
+                                                        <div className="flex-1 flex items-center min-w-0">
+                                                            <div className="flex items-center gap-2 sm:gap-4 flex-1 min-w-0">
                                                                 {!isVirtual && !isReadOnly && (
                                                                     <button
                                                                         onClick={(e) => {
@@ -357,7 +364,7 @@ export default function Timeline() {
                                                                     <div className="w-6 h-6 rounded-full border-2 border-zinc-700 mr-1 shrink-0" />
                                                                 )}
 
-                                                                <div className={`text-3xl drop-shadow-md shrink-0 pointer-events-none ${isEditableVirtual ? 'text-2xl opacity-70' : ''}`}>
+                                                                <div className={`text-2xl sm:text-3xl drop-shadow-md shrink-0 pointer-events-none ${isEditableVirtual ? 'text-xl opacity-70' : ''}`}>
                                                                     {isGoogle ? (
                                                                         <div className="w-8 h-8 rounded bg-zinc-900 flex items-center justify-center border" style={{ borderColor: `${block.color}50`, color: block.color }}>
                                                                             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -381,7 +388,7 @@ export default function Timeline() {
                                                                                     updateBlock(selectedDay, block.id, { label: e.target.value });
                                                                                 }
                                                                             }}
-                                                                            className={`w-full bg-transparent border-none px-0 py-1 font-bold text-xl tracking-tight focus:outline-none focus:ring-0 ${block.on === false ? 'text-zinc-600 line-through' : block.completed ? 'text-emerald-400 line-through opacity-70' : 'text-zinc-100 group-hover:text-white transition-colors'}`}
+                                                                            className={`w-full min-w-0 bg-transparent border-none px-0 py-1 font-bold text-lg sm:text-xl tracking-tight focus:outline-none focus:ring-0 ${block.on === false ? 'text-zinc-600 line-through' : block.completed ? 'text-emerald-400 line-through opacity-70' : 'text-zinc-100 group-hover:text-white transition-colors'}`}
                                                                         />
                                                                     ) : (
                                                                         <div className={`font-bold tracking-tight px-0 py-1 ${isEditableVirtual ? 'text-lg text-zinc-500' : block.completed ? 'text-emerald-400 line-through opacity-70 text-xl' : 'text-xl text-zinc-300'}`} style={isGoogle ? { color: block.color } : {}}>
@@ -392,7 +399,7 @@ export default function Timeline() {
                                                             </div>
                                                         </div>
 
-                                                        <div className="flex items-center gap-4 text-right shrink-0">
+                                                        <div className="timeline-block-meta timeline-block-actions flex items-center gap-2 sm:gap-4 text-right shrink-0 self-stretch sm:self-auto justify-between sm:justify-end">
                                                             {canEditDur ? (
                                                                 <div className="flex items-center group/dur">
                                                                     <input
@@ -435,7 +442,7 @@ export default function Timeline() {
                                                             )}
 
                                                             {(!isVirtual || isEditableVirtual) && !isReadOnly && (
-                                                                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                <div className="flex items-center gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                                                                     {!isEditableVirtual && (
                                                                         <button 
                                                                             onClick={() => updateBlock(selectedDay, block.id, { on: !block.on })}

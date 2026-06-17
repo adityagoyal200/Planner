@@ -9,7 +9,7 @@ export default function WeekNavigator() {
     const label = getWeekLabel(viewedKey);
 
     return (
-        <div className="flex items-center justify-between glass-card rounded-2xl px-4 py-3 mb-6 relative overflow-hidden group">
+        <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2 sm:gap-3 glass-card rounded-2xl px-3 py-3 sm:px-4 mb-4 sm:mb-6 relative overflow-hidden group">
             {/* Ambient glow */}
             <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
             {!isViewingCurrent && (
@@ -26,13 +26,13 @@ export default function WeekNavigator() {
             </button>
 
             {/* Center: Week label + badge */}
-            <div className="flex items-center gap-3 select-none">
+            <div className="flex items-center gap-2 sm:gap-3 select-none min-w-0 flex-1 justify-center">
                 {!isViewingCurrent && (
-                    <span className="text-[9px] uppercase font-black tracking-widest text-amber-500/80 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20 animate-in fade-in slide-in-from-left-2 duration-300">
+                    <span className="text-[9px] uppercase font-black tracking-widest text-amber-500/80 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20 shrink-0">
                         Past
                     </span>
                 )}
-                <span className="text-sm font-bold text-white tracking-tight">
+                <span className="text-xs sm:text-sm font-bold text-white tracking-tight text-center truncate">
                     {label}
                 </span>
                 {isViewingCurrent && (
@@ -41,7 +41,7 @@ export default function WeekNavigator() {
             </div>
 
             {/* Right: Next or "This Week" */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 sm:gap-2 justify-end">
                 {!isViewingCurrent && (
                     <button
                         onClick={jumpToCurrentWeek}

@@ -52,9 +52,9 @@ export default function SleepLineChart() {
         <div className="glass-card rounded-2xl p-5 relative overflow-hidden">
             <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-blue-500/20 to-transparent" />
             
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-4">
                 <h3 className="text-sm font-bold text-zinc-300">Sleep Trend</h3>
-                <div className="flex items-center gap-4 text-[10px] font-bold uppercase tracking-widest">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] font-bold uppercase tracking-widest">
                     <span className="flex items-center gap-1.5">
                         <span className="w-3 h-0.5 bg-blue-400 rounded-full inline-block" />
                         <span className="text-zinc-500">Actual</span>

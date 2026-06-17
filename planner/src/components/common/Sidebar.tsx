@@ -25,7 +25,7 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
     const levelInfo = getLevelInfo(xp);
 
     return (
-        <div className="w-80 h-full border-r border-white/5 bg-black/40 backdrop-blur-xl p-5 flex flex-col relative z-10 overflow-y-auto">
+        <div className="w-full h-full border-r border-white/5 bg-black/40 backdrop-blur-xl p-4 sm:p-5 flex flex-col relative z-10 overflow-y-auto overflow-x-hidden">
             <div className="flex items-center justify-between mb-8">
                 <div>
                     <div className="text-3xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-br from-white to-zinc-500">

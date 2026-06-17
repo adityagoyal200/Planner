@@ -33,15 +33,15 @@ export default function LoginScreen() {
     };
 
     return (
-        <div className="min-h-screen bg-black flex items-center justify-center relative overflow-hidden">
+        <div className="min-h-[100dvh] bg-black flex items-center justify-center relative overflow-hidden safe-px safe-pb">
             {/* Background gradient orbs */}
             <div className="absolute top-1/4 -left-32 w-96 h-96 bg-indigo-600/10 rounded-full blur-[128px] pointer-events-none" />
             <div className="absolute bottom-1/4 -right-32 w-96 h-96 bg-purple-600/10 rounded-full blur-[128px] pointer-events-none" />
 
-            <div className="relative z-10 flex flex-col items-center gap-10 px-6">
+            <div className="relative z-10 flex flex-col items-center gap-8 sm:gap-10 px-4 sm:px-6 py-8 w-full max-w-md">
                 {/* Logo / Brand */}
                 <div className="text-center">
-                    <div className="text-6xl md:text-7xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-br from-white via-zinc-300 to-zinc-600 mb-3">
+                    <div className="text-5xl sm:text-6xl md:text-7xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-br from-white via-zinc-300 to-zinc-600 mb-3">
                         Planner
                     </div>
                     <div className="text-zinc-500 text-xs uppercase tracking-[0.3em] font-bold">
@@ -50,7 +50,7 @@ export default function LoginScreen() {
                 </div>
 
                 {/* Card */}
-                <div className="bg-zinc-950/80 border border-zinc-800/60 rounded-3xl p-8 md:p-10 backdrop-blur-xl shadow-2xl shadow-black/50 max-w-sm w-full">
+                <div className="bg-zinc-950/80 border border-zinc-800/60 rounded-3xl p-6 sm:p-8 md:p-10 backdrop-blur-xl shadow-2xl shadow-black/50 w-full">
                     <div className="text-center mb-8">
                         <h2 className="text-white font-bold text-lg mb-2">Welcome back</h2>
                         <p className="text-zinc-500 text-sm leading-relaxed">

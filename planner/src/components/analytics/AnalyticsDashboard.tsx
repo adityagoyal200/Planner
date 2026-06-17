@@ -15,12 +15,12 @@ export default function AnalyticsDashboard() {
 
     return (
         <div className="max-w-5xl mx-auto space-y-6">
-            <div className="flex items-baseline gap-3 mb-2">
+            <div className="page-header mb-2">
                 <h1 className="text-2xl font-black bg-clip-text text-transparent bg-gradient-to-r from-white to-zinc-500">
                     Analytics
                 </h1>
-                <span className="text-[10px] uppercase font-bold tracking-widest text-zinc-600">
-                    Weekly Performance - {weekLabel}
+                <span className="page-header-sub text-[10px] uppercase font-bold tracking-widest text-zinc-600">
+                    Weekly Performance — {weekLabel}
                 </span>
             </div>
 

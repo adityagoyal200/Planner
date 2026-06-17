@@ -87,7 +87,7 @@ export default function BlockTypePicker({ onClose }: Props) {
             <Droppable droppableId="palette" isDropDisabled={true} direction="horizontal">
                 {(provided) => (
                     <div 
-                        className="grid grid-cols-4 gap-2 relative z-10 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar"
+                        className="grid grid-cols-3 sm:grid-cols-4 gap-2 relative z-10 max-h-[min(50vh,300px)] overflow-y-auto pr-1 custom-scrollbar"
                         ref={provided.innerRef}
                         {...provided.droppableProps}
                     >

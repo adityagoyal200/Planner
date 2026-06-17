@@ -18,6 +18,131 @@ body,
 
 body {
     overflow-x: hidden;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* Safe areas for notched phones */
+.safe-px {
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+}
+
+.safe-pb {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+.safe-pt {
+    padding-top: max(0px, env(safe-area-inset-top));
+}
+
+/* App shell */
+.app-main {
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+    padding-bottom: max(5rem, calc(env(safe-area-inset-bottom) + 4rem));
+}
+
+@media (min-width: 768px) {
+    .app-main {
+        padding-left: max(2rem, env(safe-area-inset-left));
+        padding-right: max(2rem, env(safe-area-inset-right));
+        padding-bottom: max(2rem, env(safe-area-inset-bottom));
+    }
+}
+
+/* Touch-friendly controls on coarse pointers */
+@media (pointer: coarse) {
+    button,
+    [role="button"],
+    a {
+        min-height: 2.25rem;
+    }
+
+    input[type="text"],
+    input[type="time"],
+    input[type="date"],
+    select,
+    textarea {
+        font-size: 16px; /* prevents iOS zoom on focus */
+    }
+}
+
+/* Timeline block layout on narrow screens */
+@media (max-width: 639px) {
+    .timeline-block-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.75rem;
+    }
+
+    .timeline-time-col {
+        width: 100%;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        padding-top: 0;
+    }
+
+    .timeline-time-col .time-end {
+        margin-top: 0;
+    }
+
+    .timeline-block-actions {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .timeline-block-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.75rem;
+    }
+
+    .timeline-block-meta {
+        width: 100%;
+        justify-content: space-between;
+    }
+}
+
+/* Page headings stack on mobile */
+.page-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.5rem 0.75rem;
+}
+
+.page-header-sub {
+    flex: 1 1 100%;
+}
+
+@media (min-width: 640px) {
+    .page-header-sub {
+        flex: 0 1 auto;
+    }
+}
+
+@media (pointer: coarse) {
+    .timeline-block-actions .sm\:opacity-0 {
+        opacity: 1 !important;
+    }
+}
+
+/* Glass cards breathe on small screens */
+@media (max-width: 639px) {
+    .glass-card {
+        border-radius: 1rem;
+    }
+}
+
+/* Topbar tab strip */
+.topbar-tabs {
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+}
+
+.topbar-tabs::-webkit-scrollbar {
+    display: none;
 }
 
 /* Background Animated Orbs for depth */
