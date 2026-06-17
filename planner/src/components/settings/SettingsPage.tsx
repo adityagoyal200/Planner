@@ -28,9 +28,9 @@ export default function SettingsPage() {
     const [syncStatus, setSyncStatus] = useState<string | null>(null);
 
     const {
-        selectedDay, week, updateWakeTime, updateCommute,
+        selectedDay, week, updateWakeTime, updateCommute, updateWorkStart,
         pomodoroWork, pomodoroBreak, pomodoroLongBreak, pomodoroSessions,
-        accentColor, compactMode, gamificationEnabled,
+        accentColor, compactMode, gamificationEnabled, durationDisplayUnit,
         updateSettings, resetStore, xp,
         streakFreezes,
     } = store;
@@ -48,6 +48,7 @@ export default function SettingsPage() {
             if (d !== selectedDay) {
                 updateWakeTime(d, day.wakeTime);
                 updateCommute(d, day.commuteMins);
+                updateWorkStart(d, day.workStart);
                 useScheduleStore.setState((state) => ({
                     week: { ...state.week, [d]: { ...state.week[d], sleepTarget: day.sleepTarget }}
                 }));
@@ -153,6 +154,28 @@ export default function SettingsPage() {
                             }}
                             className="mt-1 w-full rounded-xl border border-zinc-800 bg-[#050505] p-3 text-white focus:border-zinc-600 focus:outline-none transition shadow-inner tabular-nums"
                         />
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Work Start (24h)</label>
+                        <input
+                            type="text"
+                            inputMode="numeric"
+                            placeholder="HH:MM"
+                            defaultValue={day.workStart > 0 ? minsToTime(day.workStart) : ""}
+                            key={`work-${selectedDay}-${day.workStart}`}
+                            disabled={day.workStart <= 0 && day.commuteMins <= 0}
+                            onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                            onBlur={(e) => {
+                                const mins = parseTimeInput(e.target.value, 23);
+                                if (mins !== null) {
+                                    updateWorkStart(selectedDay, mins);
+                                } else {
+                                    e.target.value = day.workStart > 0 ? minsToTime(day.workStart) : "";
+                                }
+                            }}
+                            className="mt-1 w-full rounded-xl border border-zinc-800 bg-[#050505] p-3 text-white focus:border-zinc-600 focus:outline-none transition shadow-inner tabular-nums disabled:opacity-40"
+                        />
+                        <p className="text-[10px] text-zinc-600 mt-1">Commute to work ends when work starts.</p>
                     </div>
                     <div>
                         <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Commute</label>
@@ -289,6 +312,29 @@ export default function SettingsPage() {
                                     style={{ backgroundColor: c.color, boxShadow: accentColor === c.id ? `0 0 12px ${c.color}40` : undefined }}
                                     title={c.label}
                                 />
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <div className="text-sm text-zinc-300 font-medium">Block duration display</div>
+                            <div className="text-[10px] text-zinc-600">Show block lengths as minutes or hours on the timeline</div>
+                        </div>
+                        <div className="flex rounded-xl border border-zinc-800 bg-zinc-950 p-1">
+                            {(["minutes", "hours"] as const).map((unit) => (
+                                <button
+                                    key={unit}
+                                    type="button"
+                                    onClick={() => updateSettings({ durationDisplayUnit: unit })}
+                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer ${
+                                        durationDisplayUnit === unit
+                                            ? "bg-white text-black shadow-sm"
+                                            : "text-zinc-500 hover:text-zinc-300"
+                                    }`}
+                                >
+                                    {unit}
+                                </button>
                             ))}
                         </div>
                     </div>

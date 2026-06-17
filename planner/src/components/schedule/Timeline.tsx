@@ -8,11 +8,12 @@ import { addDaysToISODate, addWeeksToMondayKey, getDateForDayKeyInWeek, getDaysD
 import BlockTypePicker from "./BlockTypePicker";
 import type { BlockType } from "../../types/block";
 import { minsToTimeStr, parseTimeInput } from "../../utils/timeUtils";
+import { formatBlockDuration, formatBlockDurationLabel, getDurationSuffix, getEffectiveDurationUnit, parseBlockDurationInput } from "../../utils/durationUtils";
 
 import { nanoid } from "nanoid";
 
 export default function Timeline() {
-    const { week, selectedDay, updateBlock, removeBlock, reorderBlocks, insertBlock, setFocusBlock, focusBlockId, calendarEvents, categories, browsingWeekKey, currentWeekKey } = useScheduleStore();
+    const { week, selectedDay, updateBlock, removeBlock, reorderBlocks, insertBlock, setFocusBlock, focusBlockId, calendarEvents, categories, browsingWeekKey, currentWeekKey, durationDisplayUnit, updateCommute, updateWorkStart } = useScheduleStore();
     const isReadOnly = !!browsingWeekKey;
     const day = week[selectedDay];
     const [showPicker, setShowPicker] = useState(false);
@@ -156,7 +157,7 @@ export default function Timeline() {
                                                     </div>
                                                     <div className="flex-1 flex items-center gap-4 border-t border-dashed border-zinc-800/50 relative">
                                                         <div className="text-xs font-bold text-zinc-600 uppercase tracking-widest bg-black px-2 -ml-2">
-                                                            {block.dur}m buffer
+                                                            {formatBlockDurationLabel(block.dur, durationDisplayUnit)} buffer
                                                         </div>
                                                         
                                                         {causedByManualBuffer && (
@@ -210,9 +211,9 @@ export default function Timeline() {
                                                                 onBlur={(e) => {
                                                                     const val = e.target.value.trim();
                                                                     // Only allow editing within a 0..23h day; cross-day is done via the date picker.
-                                                                    let minsOfDay = parseTimeInput(val, 23);
+                                                                    const minsOfDay = parseTimeInput(val, 23);
                                                                     if (minsOfDay !== null) {
-                                                                        let blockDateStr = block.actualStartDate || refDate;
+                                                                        const blockDateStr = block.actualStartDate || refDate;
                                                                         // If user enters an early-morning time for a block that is currently on the next day,
                                                                         // preserve the existing actualStartDate if it exists. Otherwise keep it on refDate.
                                                                         
@@ -224,6 +225,9 @@ export default function Timeline() {
                                                                             if (originalEventId) {
                                                                                 useScheduleStore.getState().syncCalendarEventUpdate(originalEventId, { startMins: absoluteMins, endMins: absoluteMins + block.dur });
                                                                             }
+                                                                        } else if (isEditableVirtual && block.id === "commute-to") {
+                                                                            const commuteMins = week[selectedDay]?.commuteMins ?? 0;
+                                                                            updateWorkStart(selectedDay, minsOfDay + commuteMins);
                                                                         } else if (!isVirtual) {
                                                                             updateBlock(selectedDay, block.id, { actualStart: minsOfDay, actualStartDate: blockDateStr });
                                                                         }
@@ -393,45 +397,40 @@ export default function Timeline() {
                                                                 <div className="flex items-center group/dur">
                                                                     <input
                                                                         type="text"
-                                                                        inputMode="numeric"
-                                                                        pattern="[0-9]*"
-                                                                        defaultValue={block.dur}
-                                                                        key={`dur-${block.id}-${block.dur}`}
+                                                                        inputMode={getEffectiveDurationUnit(block.dur, durationDisplayUnit) === "hours" ? "decimal" : "numeric"}
+                                                                        defaultValue={formatBlockDuration(block.dur, durationDisplayUnit)}
+                                                                        key={`dur-${block.id}-${block.dur}-${durationDisplayUnit}`}
                                                                         onKeyDown={(e) => {
                                                                             if (e.key === 'Enter') {
                                                                                 e.currentTarget.blur();
                                                                             }
                                                                         }}
                                                                         onBlur={(e) => {
-                                                                            const val = parseInt(e.target.value, 10);
-                                                                            if (!isNaN(val) && val > 0 && val !== block.dur) {
+                                                                            const val = parseBlockDurationInput(e.target.value, durationDisplayUnit, block.dur);
+                                                                            if (val !== null && val > 0 && val !== block.dur) {
                                                                                 if (isGoogle) {
                                                                                     const originalEventId = block.originalEvent?.id;
                                                                                     if (originalEventId) {
                                                                                         useScheduleStore.getState().syncCalendarEventUpdate(originalEventId, { endMins: block.start + val });
                                                                                     }
                                                                                 } else if (isEditableVirtual && block.id.startsWith("commute")) {
-                                                                                    if (block.id === "commute-home") {
-                                                                                        useScheduleStore.getState().updateCommute(selectedDay, Math.max(0, val - 15));
-                                                                                    } else {
-                                                                                        useScheduleStore.getState().updateCommute(selectedDay, val);
-                                                                                    }
+                                                                                    updateCommute(selectedDay, val);
                                                                                 } else if (!isVirtual) {
                                                                                     updateBlock(selectedDay, block.id, { dur: val });
                                                                                 }
                                                                             } else {
-                                                                                e.target.value = block.dur.toString();
+                                                                                e.target.value = formatBlockDuration(block.dur, durationDisplayUnit);
                                                                             }
                                                                         }}
                                                                         className={`w-16 bg-transparent border-none p-0 text-right font-black tracking-tighter focus:outline-none focus:ring-0 ${isEditableVirtual ? 'text-xl text-zinc-600 hover:text-zinc-400' : block.on === false ? 'text-zinc-700 text-2xl' : 'text-zinc-300 hover:text-white text-2xl'} border-b border-transparent hover:border-dashed hover:border-zinc-500 transition-all cursor-pointer`}
                                                                         title="Edit duration"
                                                                     />
-                                                                    <span className={`text-sm font-semibold ml-1 ${isEditableVirtual ? 'text-zinc-700' : 'text-zinc-600'}`}>m</span>
+                                                                    <span className={`text-sm font-semibold ml-1 ${isEditableVirtual ? 'text-zinc-700' : 'text-zinc-600'}`}>{getDurationSuffix(block.dur, durationDisplayUnit)}</span>
                                                                 </div>
                                                             ) : (
                                                                 <div className="text-2xl font-black tracking-tighter text-zinc-600">
-                                                                    {block.allDay ? "All Day" : block.dur}
-                                                                    {!block.allDay && <span className="text-sm font-semibold text-zinc-700 ml-1">m</span>}
+                                                                    {block.allDay ? "All Day" : formatBlockDuration(block.dur, durationDisplayUnit)}
+                                                                    {!block.allDay && <span className="text-sm font-semibold text-zinc-700 ml-1">{getDurationSuffix(block.dur, durationDisplayUnit)}</span>}
                                                                 </div>
                                                             )}
 

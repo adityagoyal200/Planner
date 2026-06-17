@@ -10,6 +10,7 @@ import SettingsPage from "../settings/SettingsPage";
 import WeekNavigator from "../schedule/WeekNavigator";
 import NewWeekBanner from "../schedule/NewWeekBanner";
 import { useScheduleStore } from "../../store/useScheduleStore";
+import { useGoogleCalendarSession } from "../../hooks/useGoogleCalendarSession";
 import { Toaster } from "react-hot-toast";
 import LevelUpModal from "./LevelUpModal";
 
@@ -25,6 +26,8 @@ const ACCENT_MAP: Record<string, string> = {
 export default function DashboardLayout() {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const { currentTab, accentColor, compactMode } = useScheduleStore();
+
+    useGoogleCalendarSession();
 
     const accentHex = ACCENT_MAP[accentColor] || ACCENT_MAP.indigo;
 

@@ -1,6 +1,10 @@
-import { useEffect, useState, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { useScheduleStore } from "../../store/useScheduleStore";
-import { initGoogleAuth, requestGoogleAccess, revokeGoogleAccess, fetchEventsForDate } from "../../services/googleCalendar";
+import {
+    ensureGoogleAccessToken,
+    revokeGoogleAccess,
+    fetchEventsForDateAuthenticated,
+} from "../../services/googleCalendar";
 import { getDateForDayKeyInWeek } from "../../utils/dateUtils";
 import { minsToTimeStr } from "../../utils/timeUtils";
 
@@ -9,32 +13,36 @@ function getErrorMessage(err: unknown): string {
 }
 
 export default function CalendarSync() {
-    const { googleToken, setGoogleToken, calendarEvents, setCalendarEvents, clearGoogle, selectedDay, currentWeekKey, browsingWeekKey } = useScheduleStore();
+    const {
+        googleToken,
+        googleCalendarLinked,
+        setGoogleCalendarLinked,
+        calendarEvents,
+        setCalendarEvents,
+        clearGoogle,
+        selectedDay,
+        currentWeekKey,
+        browsingWeekKey,
+    } = useScheduleStore();
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
     const viewedWeekKey = browsingWeekKey || currentWeekKey;
     const selectedDate = getDateForDayKeyInWeek(selectedDay, viewedWeekKey);
+    const isConnected = googleCalendarLinked;
 
-    useEffect(() => {
-        // Initialize GIS
-        initGoogleAuth((token) => {
-            setGoogleToken(token);
-        });
-    }, [setGoogleToken]);
-
-    const handleFetchEvents = useCallback(async (token: string, dateIso: string) => {
+    const handleFetchEvents = useCallback(async (dateIso: string) => {
         setIsLoading(true);
         setError(null);
         try {
-            const events = await fetchEventsForDate(token, dateIso);
+            const events = await fetchEventsForDateAuthenticated(dateIso);
             setCalendarEvents(events);
             setLastSyncedAt(new Date().toLocaleTimeString());
         } catch (err) {
             console.error(err);
-            if (getErrorMessage(err) === "TOKEN_EXPIRED") {
-                // Silently request a new token if expired
-                requestGoogleAccess(true);
+            const message = getErrorMessage(err);
+            if (message === "NOT_CONNECTED") {
+                setError("Calendar session expired. Click Connect to sign in again.");
             } else {
                 setError("Failed to fetch events.");
             }
@@ -43,21 +51,32 @@ export default function CalendarSync() {
         }
     }, [setCalendarEvents]);
 
-    useEffect(() => {
-        if (googleToken) {
-            queueMicrotask(() => handleFetchEvents(googleToken, selectedDate));
+    const handleConnect = async () => {
+        setError(null);
+        setIsLoading(true);
+        try {
+            const token = await ensureGoogleAccessToken({ interactive: true });
+            if (!token) {
+                setError("Could not connect to Google Calendar.");
+                return;
+            }
+            setGoogleCalendarLinked(true);
+            await handleFetchEvents(selectedDate);
+        } catch (err) {
+            console.error(err);
+            setError("Could not connect to Google Calendar.");
+        } finally {
+            setIsLoading(false);
         }
-    }, [googleToken, selectedDate, handleFetchEvents]);
-
-    const handleConnect = () => {
-        requestGoogleAccess();
     };
 
     const handleDisconnect = () => {
         if (googleToken) {
             revokeGoogleAccess(googleToken);
-            clearGoogle();
         }
+        clearGoogle();
+        setError(null);
+        setLastSyncedAt(null);
     };
 
     return (
@@ -72,8 +91,8 @@ export default function CalendarSync() {
                     </svg>
                     Google Calendar
                 </h3>
-                {googleToken && (
-                    <button 
+                {isConnected && (
+                    <button
                         onClick={handleDisconnect}
                         className="text-[10px] text-zinc-500 hover:text-rose-400 font-bold uppercase tracking-widest transition-colors"
                     >
@@ -82,14 +101,15 @@ export default function CalendarSync() {
                 )}
             </div>
 
-            {!googleToken ? (
+            {!isConnected ? (
                 <div className="text-center py-4">
                     <p className="text-xs text-zinc-500 mb-4">Connect to see events for the selected day directly in your timeline.</p>
-                    <button 
+                    <button
                         onClick={handleConnect}
-                        className="bg-zinc-100 hover:bg-white text-zinc-900 font-bold text-sm px-4 py-2 rounded-xl transition-all"
+                        disabled={isLoading}
+                        className="bg-zinc-100 hover:bg-white text-zinc-900 font-bold text-sm px-4 py-2 rounded-xl transition-all disabled:opacity-50"
                     >
-                        Connect Calendar
+                        {isLoading ? "Connecting..." : "Connect Calendar"}
                     </button>
                     {error && <p className="text-xs text-rose-500 mt-2">{error}</p>}
                 </div>
@@ -102,8 +122,8 @@ export default function CalendarSync() {
                                 {selectedDate}
                             </span>
                         </div>
-                        <button 
-                            onClick={() => handleFetchEvents(googleToken, selectedDate)}
+                        <button
+                            onClick={() => handleFetchEvents(selectedDate)}
                             className="text-[10px] text-zinc-500 hover:text-white font-bold uppercase tracking-widest transition-colors flex items-center gap-1"
                             disabled={isLoading}
                         >
@@ -124,8 +144,8 @@ export default function CalendarSync() {
                                 <div key={ev.id} className="flex flex-col bg-zinc-900/50 p-2 rounded-lg border border-zinc-800/50">
                                     <span className="text-sm font-bold text-zinc-300 truncate">{ev.title}</span>
                                     <div className="flex items-center gap-2 mt-1">
-                                        <div 
-                                            className="w-2 h-2 rounded-full" 
+                                        <div
+                                            className="w-2 h-2 rounded-full"
                                             style={{ backgroundColor: ev.color }}
                                         />
                                         <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">

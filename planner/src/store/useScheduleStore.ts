@@ -3,10 +3,11 @@ import { persist } from "zustand/middleware";
 import { nanoid } from "nanoid";
 import type { Block, BlockCategory } from "../types/block";
 import type { DayData } from "../types/schedule";
-import { type CalendarEvent, type GoogleEventUpdate, updateGoogleEvent } from "../services/googleCalendar";
+import { type CalendarEvent, type GoogleEventUpdate, updateGoogleEventAuthenticated } from "../services/googleCalendar";
 import { getLevelInfo } from "../engine/xpEngine";
 import { addDaysToISODate, toLocalISODate, getMondayOfWeek, addWeeksToMondayKey, getWeekLabel } from "../utils/dateUtils";
 import { computeWeekAggregate } from "../services/weekLifecycleService";
+import type { DurationDisplayUnit } from "../utils/durationUtils";
 import { toast } from "react-hot-toast";
 import {
     createMonday,
@@ -110,6 +111,7 @@ interface ScheduleStore {
 
     // Google Calendar
     googleToken: string | null;
+    googleCalendarLinked: boolean;
     calendarEvents: CalendarEvent[];
 
     // Weekly history
@@ -133,6 +135,7 @@ interface ScheduleStore {
     pomodoroSessions: number;
     accentColor: string;
     compactMode: boolean;
+    durationDisplayUnit: DurationDisplayUnit;
 
     // Actions — Navigation
     setCurrentTab: (tab: AppTab) => void;
@@ -141,6 +144,7 @@ interface ScheduleStore {
     setSelectedDay: (d: DayKey) => void;
     updateWakeTime: (day: DayKey, wakeTime: number) => void;
     updateCommute: (day: DayKey, mins: number) => void;
+    updateWorkStart: (day: DayKey, workStart: number) => void;
     updateActualWakeTime: (day: DayKey, time: number | null) => void;
     updateActualSleepTime: (day: DayKey, time: number | null) => void;
     updateActualWakeDate: (day: DayKey, date: string | null) => void;
@@ -169,10 +173,11 @@ interface ScheduleStore {
     updateJournal: (day: DayKey, entry: Partial<JournalEntry>) => void;
 
     // Actions — Settings
-    updateSettings: (settings: Partial<Pick<ScheduleStore, 'pomodoroWork' | 'pomodoroBreak' | 'pomodoroLongBreak' | 'pomodoroSessions' | 'accentColor' | 'compactMode' | 'gamificationEnabled'>>) => void;
+    updateSettings: (settings: Partial<Pick<ScheduleStore, 'pomodoroWork' | 'pomodoroBreak' | 'pomodoroLongBreak' | 'pomodoroSessions' | 'accentColor' | 'compactMode' | 'gamificationEnabled' | 'durationDisplayUnit'>>) => void;
 
     // Google Calendar actions
     setGoogleToken: (token: string | null) => void;
+    setGoogleCalendarLinked: (linked: boolean) => void;
     setCalendarEvents: (events: CalendarEvent[]) => void;
     clearGoogle: () => void;
     updateCalendarEventLocal: (eventId: string, updates: Partial<CalendarEvent>) => void;
@@ -207,6 +212,7 @@ export const useScheduleStore = create<ScheduleStore>()(
             lastCompletedDate: null,
             focusBlockId: null,
             googleToken: null,
+            googleCalendarLinked: false,
             calendarEvents: [],
             weekHistory: [],
 
@@ -236,6 +242,7 @@ export const useScheduleStore = create<ScheduleStore>()(
             pomodoroSessions: 4,
             accentColor: "indigo",
             compactMode: false,
+            durationDisplayUnit: "minutes",
 
             week: {
                 mon: createMonday(),
@@ -263,6 +270,14 @@ export const useScheduleStore = create<ScheduleStore>()(
                     week: {
                         ...state.week,
                         [day]: { ...state.week[day], commuteMins: mins },
+                    },
+                })),
+
+            updateWorkStart: (day, workStart) =>
+                set((state) => ({
+                    week: {
+                        ...state.week,
+                        [day]: { ...state.week[day], workStart },
                     },
                 })),
 
@@ -488,8 +503,9 @@ export const useScheduleStore = create<ScheduleStore>()(
             updateSettings: (settings) => set(settings),
 
             setGoogleToken: (token) => set({ googleToken: token }),
+            setGoogleCalendarLinked: (linked) => set({ googleCalendarLinked: linked }),
             setCalendarEvents: (events) => set({ calendarEvents: events }),
-            clearGoogle: () => set({ googleToken: null, calendarEvents: [] }),
+            clearGoogle: () => set({ googleCalendarLinked: false, googleToken: null, calendarEvents: [] }),
 
             updateCalendarEventLocal: (eventId, updates) =>
                 set((state) => ({
@@ -501,15 +517,12 @@ export const useScheduleStore = create<ScheduleStore>()(
             syncCalendarEventUpdate: async (eventId, updates) => {
                 useScheduleStore.getState().updateCalendarEventLocal(eventId, updates);
 
-                const token = useScheduleStore.getState().googleToken;
-                if (!token) return;
+                if (!useScheduleStore.getState().googleCalendarLinked) return;
 
                 const ev = useScheduleStore.getState().calendarEvents.find(e => e.id === eventId);
                 if (!ev || !ev.originalStart || !ev.originalEnd) return;
 
                 try {
-                    // When events are stored as mins-from-midnight, updates can exceed 1440 if user shifts date.
-                    // We apply the minute-of-day on the original date anchor and let the UI handle date changes separately.
                     const apiUpdates: GoogleEventUpdate = {};
                     if (updates.startMins !== undefined) {
                         const d = new Date(ev.originalStart);
@@ -525,13 +538,9 @@ export const useScheduleStore = create<ScheduleStore>()(
                         apiUpdates.summary = updates.title;
                     }
 
-                    await updateGoogleEvent(token, eventId, apiUpdates);
-                    
-                    // We could refetch today's events here to be perfectly in sync,
-                    // but the optimistic update is usually enough.
+                    await updateGoogleEventAuthenticated(eventId, apiUpdates);
                 } catch (err) {
                     console.error("Failed to sync event update", err);
-                    // Could revert optimistic update here if desired
                 }
             },
 
@@ -764,6 +773,7 @@ export const useScheduleStore = create<ScheduleStore>()(
                 lastCompletedDate: null,
                 focusBlockId: null,
                 googleToken: null,
+                googleCalendarLinked: false,
                 calendarEvents: [],
                 weekHistory: [],
                 weeks: {},
@@ -785,6 +795,7 @@ export const useScheduleStore = create<ScheduleStore>()(
                 pomodoroSessions: 4,
                 accentColor: "indigo",
                 compactMode: false,
+            durationDisplayUnit: "minutes",
                 week: {
                     mon: createMonday(),
                     tue: createTuesday(),
@@ -798,6 +809,20 @@ export const useScheduleStore = create<ScheduleStore>()(
         }),
         {
             name: "planner-storage",
+            partialize: (state) => {
+                const { googleToken, calendarEvents, ...persisted } = state;
+                void googleToken;
+                void calendarEvents;
+                return persisted;
+            },
+            onRehydrateStorage: () => (state) => {
+                if (!state) return;
+                if (state.googleToken && !state.googleCalendarLinked) {
+                    state.googleCalendarLinked = true;
+                }
+                state.googleToken = null;
+                state.calendarEvents = [];
+            },
         }
     )
 );
@@ -843,6 +868,8 @@ function getCloudPayload() {
         pomodoroSessions: s.pomodoroSessions,
         accentColor: s.accentColor,
         compactMode: s.compactMode,
+        durationDisplayUnit: s.durationDisplayUnit,
+        googleCalendarLinked: s.googleCalendarLinked,
     };
 }
 
@@ -900,6 +927,8 @@ export async function hydrateFromCloud(userId: string) {
         pomodoroSessions: cloud.pomodoroSessions ?? 4,
         accentColor: cloud.accentColor ?? "indigo",
         compactMode: cloud.compactMode ?? false,
+        durationDisplayUnit: cloud.durationDisplayUnit === "hours" ? "hours" : "minutes",
+        googleCalendarLinked: !!cloud.googleCalendarLinked,
         levelUpModal: null,
     });
 

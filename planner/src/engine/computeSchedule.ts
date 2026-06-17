@@ -110,7 +110,11 @@ export function computeSchedule(
             });
             t += day.commuteMins;
 
-            if (blockActualStart != null) t = blockActualStart;
+            if (blockActualStart != null) {
+                t = blockActualStart;
+            } else {
+                t = day.workStart;
+            }
 
             scheduled.push({
                 ...block,
@@ -124,11 +128,11 @@ export function computeSchedule(
                 label: "Commute Home",
                 type: "travel",
                 start: t,
-                end: t + day.commuteMins + 15,
-                dur: day.commuteMins + 15,
+                end: t + day.commuteMins,
+                dur: day.commuteMins,
                 virtual: true,
             });
-            t += day.commuteMins + 15;
+            t += day.commuteMins;
         } else {
             if (blockActualStart != null) t = blockActualStart;
 

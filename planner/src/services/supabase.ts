@@ -29,6 +29,8 @@ export interface NormalizedCloudState {
     pomodoroSessions?: number;
     accentColor?: string;
     compactMode?: boolean;
+    durationDisplayUnit?: "minutes" | "hours";
+    googleCalendarLinked?: boolean;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

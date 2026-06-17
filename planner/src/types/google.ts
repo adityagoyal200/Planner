@@ -4,6 +4,9 @@ export interface GoogleCredentialResponse {
 
 export interface GoogleTokenResponse {
     access_token?: string;
+    expires_in?: number;
+    error?: string;
+    error_description?: string;
 }
 
 export interface GoogleTokenClient {
