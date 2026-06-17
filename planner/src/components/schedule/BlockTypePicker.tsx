@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Droppable, Draggable } from "@hello-pangea/dnd";
 import { useScheduleStore } from "../../store/useScheduleStore";
 import { nanoid } from "nanoid";
+import type { BlockCategory } from "../../types/block";
 
 interface Props {
     onClose: () => void;
@@ -36,7 +37,7 @@ export default function BlockTypePicker({ onClose }: Props) {
     const [newEmoji, setNewEmoji] = useState("✨");
     const [newColor, setNewColor] = useState(PRESET_COLORS[0]);
 
-    const openEditForm = (cat: any) => {
+    const openEditForm = (cat: BlockCategory) => {
         setEditingCatId(cat.id);
         setNewName(cat.name);
         setNewEmoji(cat.emoji);

@@ -12,7 +12,9 @@ const MOODS = [
 const ENERGY_LEVELS = [1, 2, 3, 4, 5];
 
 export default function MoodLogger() {
-    const { selectedDay, journal, updateJournal } = useScheduleStore();
+    const { selectedDay, journalsByWeek, currentWeekKey, browsingWeekKey, updateJournal } = useScheduleStore();
+    const weekKey = browsingWeekKey || currentWeekKey;
+    const journal = journalsByWeek[weekKey] || {};
     const entry = journal?.[selectedDay] || { mood: null, energy: null, intention: "", reflection: "", gratitude: [] };
 
     return (

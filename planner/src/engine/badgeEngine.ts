@@ -1,7 +1,8 @@
 import type { DayData } from "../types/schedule";
 import type { DayKey } from "../store/useScheduleStore";
 import { computeSchedule } from "./computeSchedule";
-import { getDateForDayKey } from "../utils/dateUtils";
+import { getDateForDayKeyInWeek } from "../utils/dateUtils";
+import { getTotalSleepDurationMins } from "../utils/sleepUtils";
 
 export interface Badge {
     id: string;
@@ -16,38 +17,22 @@ export const ALL_BADGES: Badge[] = [
     { id: "week-warrior", name: "Week Warrior", description: "7-day streak", icon: "🔥", condition: "Maintain a 7-day streak" },
     { id: "iron-will", name: "Iron Will", description: "100% score 3 days in a row", icon: "💪", condition: "Perfect day score 3 consecutive days" },
     { id: "sleep-champion", name: "Sleep Champion", description: "Hit sleep target 7 nights", icon: "😴", condition: "Meet sleep target every night this week" },
-    { id: "scholar", name: "Scholar", description: "20+ hours study/aim in a week", icon: "📚", condition: "20+ hours of learning blocks" },
+    { id: "scholar", name: "Scholar", description: "20+ hours study in a week", icon: "📚", condition: "20+ hours of learning blocks" },
     { id: "lightning", name: "Lightning", description: "All morning blocks before work", icon: "⚡", condition: "Complete all pre-work blocks" },
     { id: "centurion", name: "Centurion", description: "100-day streak", icon: "🏆", condition: "Reach a 100-day streak" },
     { id: "balance", name: "Balance", description: "No category > 40% for 5 days", icon: "🧘", condition: "Balanced time distribution" },
 ];
 
-function getSleepHours(day: DayData, dayKey: DayKey): number {
-    const refDate = getDateForDayKey(dayKey);
+function getSleepHours(day: DayData, dayKey: DayKey, weekKey: string): number {
+    const refDate = getDateForDayKeyInWeek(dayKey, weekKey);
     const { sleepTime, totalNapMins } = computeSchedule(day, [], { referenceDate: refDate });
-    const wakeMins = day.actualWakeTime ?? day.wakeTime;
-    const effectiveSleep = day.actualSleepTime ?? sleepTime;
-
-    let sleepDur = 0;
-    if (day.actualSleepTime != null && day.actualSleepDate && day.actualWakeDate) {
-        const sd = new Date(day.actualSleepDate).getTime() / 60000 + (day.actualSleepTime % 1440);
-        const wd = new Date(day.actualWakeDate).getTime() / 60000 + (wakeMins % 1440);
-        let diff = wd - sd;
-        if (diff < 0) diff += 1440;
-        if (diff > 1440) diff -= 1440;
-        sleepDur = diff;
-    } else if (effectiveSleep <= 1440) {
-        sleepDur = (1440 - effectiveSleep) + wakeMins;
-    } else {
-        sleepDur = wakeMins - (effectiveSleep - 1440);
-    }
-    sleepDur += totalNapMins;
-    return sleepDur / 60;
+    return getTotalSleepDurationMins(day, sleepTime, totalNapMins) / 60;
 }
 
 export function checkBadges(
     week: Record<DayKey, DayData>,
-    streak: number
+    streak: number,
+    weekKey: string
 ): string[] {
     const days: DayKey[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
     const earned: string[] = [];
@@ -82,7 +67,7 @@ export function checkBadges(
 
     // Sleep Champion: hit target all 7 nights
     const sleepTargetHits = days.filter(d => {
-        const hours = getSleepHours(week[d], d);
+        const hours = getSleepHours(week[d], d, weekKey);
         return hours * 60 >= week[d].sleepTarget;
     }).length;
     if (sleepTargetHits >= 7) earned.push("sleep-champion");
@@ -91,7 +76,7 @@ export function checkBadges(
     let studyMins = 0;
     for (const d of days) {
         for (const b of week[d].blocks) {
-            if (b.on && (b.type === "study" || b.type === "aim")) {
+            if (b.on && b.type === "study") {
                 studyMins += b.dur;
             }
         }

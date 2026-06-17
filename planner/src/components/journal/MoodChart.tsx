@@ -3,7 +3,9 @@ import { useScheduleStore, DAY_KEYS } from "../../store/useScheduleStore";
 const MOOD_EMOJIS = ["", "😫", "😔", "😐", "🙂", "😊"];
 
 export default function MoodChart() {
-    const { journal, selectedDay } = useScheduleStore();
+    const { journalsByWeek, selectedDay, currentWeekKey, browsingWeekKey } = useScheduleStore();
+    const weekKey = browsingWeekKey || currentWeekKey;
+    const journal = journalsByWeek[weekKey] || {};
     const labels = ["M", "T", "W", "T", "F", "S", "S"];
 
     const moodData = DAY_KEYS.map(d => journal?.[d]?.mood || 0);

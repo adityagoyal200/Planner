@@ -1,15 +1,16 @@
 import { useScheduleStore } from "../../store/useScheduleStore";
 import { getLevelInfo } from "../../engine/xpEngine";
-import { computeWeekXP } from "../../engine/xpEngine";
+import { computeWeeklyXpSummary } from "../../services/analyticsService";
 
 export default function XPCard() {
-    const { xp, streak, gamificationEnabled, week, streakFreezes, streakFreezeUsedThisWeek } = useScheduleStore();
+    const { xp, streak, gamificationEnabled, week, streakFreezes, streakFreezeUsedThisWeek, currentWeekKey, browsingWeekKey } = useScheduleStore();
     
     if (!gamificationEnabled) return null;
 
-    const weekXP = computeWeekXP(week, streak);
-    const totalXP = xp + weekXP;
+    const weekXP = computeWeeklyXpSummary(week, streak, browsingWeekKey || currentWeekKey);
+    const totalXP = xp;
     const info = getLevelInfo(totalXP);
+    const weekXPLabel = weekXP.toLocaleString();
 
     // SVG arc for circular progress
     const size = 100;
@@ -25,7 +26,7 @@ export default function XPCard() {
             {/* Ambient glow */}
             <div className="absolute -top-20 -right-20 w-40 h-40 bg-amber-500/5 rounded-full blur-3xl group-hover:bg-amber-500/10 transition-all duration-1000" />
 
-            <div className="flex items-center gap-6 relative z-10">
+            <div className="flex flex-col sm:flex-row items-center gap-6 relative z-10 text-center sm:text-left">
                 {/* Circular Level Gauge */}
                 <div className="relative shrink-0">
                     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
@@ -76,7 +77,7 @@ export default function XPCard() {
                     <div className="mb-2">
                         <div className="flex justify-between items-baseline mb-1">
                             <span className="text-lg font-black text-white">{totalXP.toLocaleString()} XP</span>
-                            <span className="text-[10px] font-bold text-zinc-600">{info.xpForNextLevel.toLocaleString()} to next</span>
+                            <span className="text-[10px] font-bold text-zinc-600">{weekXPLabel} this week</span>
                         </div>
                         <div className="h-1.5 bg-zinc-900 rounded-full overflow-hidden">
                             <div 

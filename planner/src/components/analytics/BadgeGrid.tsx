@@ -1,12 +1,23 @@
+import { useEffect } from "react";
 import { useScheduleStore } from "../../store/useScheduleStore";
-import { ALL_BADGES, checkBadges } from "../../engine/badgeEngine";
+import { ALL_BADGES } from "../../engine/badgeEngine";
+import { computeWeeklyBadges } from "../../services/analyticsService";
 
 export default function BadgeGrid() {
-    const { week, streak, earnedBadges } = useScheduleStore();
+    const { week, streak, earnedBadges, unlockBadge, currentWeekKey, browsingWeekKey } = useScheduleStore();
     
-    const currentlyEarned = checkBadges(week, streak);
+    const currentlyEarned = computeWeeklyBadges(week, streak, browsingWeekKey || currentWeekKey);
     const earnedSet = new Set([...currentlyEarned, ...earnedBadges.map(b => b.id)]);
 
+    // Auto-persist newly earned badges
+    useEffect(() => {
+        const alreadyEarned = new Set(earnedBadges.map(b => b.id));
+        for (const badgeId of currentlyEarned) {
+            if (!alreadyEarned.has(badgeId)) {
+                unlockBadge(badgeId);
+            }
+        }
+    }, [currentlyEarned.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
     return (
         <div className="glass-card rounded-2xl p-5 relative overflow-hidden">
             <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-pink-500/20 to-transparent" />
@@ -18,7 +29,7 @@ export default function BadgeGrid() {
                 </span>
             </div>
 
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {ALL_BADGES.map((badge) => {
                     const unlocked = earnedSet.has(badge.id);
 

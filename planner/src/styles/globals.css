@@ -118,3 +118,67 @@ input[type=number] {
     user-select: none;
     -webkit-user-select: none;
 }
+
+/* Utility to hide scrollbar but keep functionality */
+.hide-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+.hide-scrollbar {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+}
+
+/* ── Accent Color (set via --accent CSS var from DashboardLayout) ── */
+/* Active toggle switches use accent */
+button.bg-amber-500 {
+    background-color: var(--accent, #f59e0b) !important;
+}
+button.bg-violet-500 {
+    background-color: var(--accent, #8b5cf6) !important;
+}
+
+/* Selection highlights */
+::selection {
+    background: var(--accent-light, rgba(99, 102, 241, 0.2));
+}
+
+/* ── Compact Mode ── */
+.compact-mode .glass-card {
+    padding: 12px;
+}
+
+.compact-mode .text-3xl {
+    font-size: 1.25rem;
+    line-height: 1.5rem;
+}
+
+.compact-mode .text-2xl {
+    font-size: 1.1rem;
+    line-height: 1.4rem;
+}
+
+.compact-mode .text-xl {
+    font-size: 0.95rem;
+    line-height: 1.25rem;
+}
+
+.compact-mode .space-y-4 > * + * {
+    margin-top: 0.5rem;
+}
+
+.compact-mode .space-y-6 > * + * {
+    margin-top: 0.75rem;
+}
+
+.compact-mode .p-3,
+.compact-mode .sm\:p-4 {
+    padding: 0.5rem;
+}
+
+.compact-mode .rounded-2xl {
+    border-radius: 0.75rem;
+}
+
+.compact-mode .mb-8 {
+    margin-bottom: 1rem;
+}

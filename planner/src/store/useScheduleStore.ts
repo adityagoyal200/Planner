@@ -3,8 +3,11 @@ import { persist } from "zustand/middleware";
 import { nanoid } from "nanoid";
 import type { Block, BlockCategory } from "../types/block";
 import type { DayData } from "../types/schedule";
-import { type CalendarEvent, updateGoogleEvent } from "../services/googleCalendar";
-import { computeSchedule } from "../engine/computeSchedule";
+import { type CalendarEvent, type GoogleEventUpdate, updateGoogleEvent } from "../services/googleCalendar";
+import { getLevelInfo } from "../engine/xpEngine";
+import { addDaysToISODate, toLocalISODate, getMondayOfWeek, addWeeksToMondayKey, getWeekLabel } from "../utils/dateUtils";
+import { computeWeekAggregate } from "../services/weekLifecycleService";
+import { toast } from "react-hot-toast";
 import {
     createMonday,
     createTuesday,
@@ -35,6 +38,7 @@ export const DAY_KEYS: DayKey[] = ["mon", "tue", "wed", "thu", "fri", "sat", "su
 
 export interface WeekSnapshot {
     id: string;
+    weekKey: string;               // Monday ISO date key
     weekLabel: string;     
     dateArchived: string;          
     totalSleepHours: number;
@@ -43,6 +47,9 @@ export interface WeekSnapshot {
     dayScore: number;         
     categoryBreakdown: Record<string, number>; 
     weekData: Record<DayKey, DayData>;
+    completedBlocks: number;
+    totalBlocks: number;
+    xpEarned: number;
 }
 
 export type AppTab = 'schedule' | 'analytics' | 'journal' | 'settings';
@@ -63,9 +70,27 @@ const DEFAULT_JOURNAL: JournalEntry = {
     gratitude: [],
 };
 
+function createEmptyJournalWeek(): Record<DayKey, JournalEntry> {
+    return {
+        mon: { ...DEFAULT_JOURNAL },
+        tue: { ...DEFAULT_JOURNAL },
+        wed: { ...DEFAULT_JOURNAL },
+        thu: { ...DEFAULT_JOURNAL },
+        fri: { ...DEFAULT_JOURNAL },
+        sat: { ...DEFAULT_JOURNAL },
+        sun: { ...DEFAULT_JOURNAL },
+    };
+}
+
 interface ScheduleStore {
     selectedDay: DayKey;
     week: Record<DayKey, DayData>;
+
+    // Multi-week storage
+    weeks: Record<string, Record<DayKey, DayData>>;  // key = Monday ISO date
+    currentWeekKey: string;        // The real calendar Monday
+    browsingWeekKey: string | null; // null = viewing live current week
+    newWeekArchived: WeekSnapshot | null; // Auto-archive result shown as banner
 
     // Navigation
     currentTab: AppTab;
@@ -96,9 +121,10 @@ interface ScheduleStore {
     streakFreezes: number;
     streakFreezeUsedThisWeek: boolean;
     gamificationEnabled: boolean;
+    levelUpModal: { level: number; title: string } | null;
 
     // Journal
-    journal: Record<DayKey, JournalEntry>;
+    journalsByWeek: Record<string, Record<DayKey, JournalEntry>>;
 
     // Settings
     pomodoroWork: number;
@@ -137,6 +163,7 @@ interface ScheduleStore {
     addXP: (amount: number) => void;
     unlockBadge: (badgeId: string) => void;
     useStreakFreeze: () => void;
+    setLevelUpModal: (modal: { level: number; title: string } | null) => void;
 
     // Actions — Journal
     updateJournal: (day: DayKey, entry: Partial<JournalEntry>) => void;
@@ -159,6 +186,13 @@ interface ScheduleStore {
     // Weekly history
     archiveCurrentWeek: () => void;
 
+    // Week navigation
+    navigateWeek: (direction: 'prev' | 'next') => void;
+    jumpToCurrentWeek: () => void;
+    viewWeekByKey: (weekKey: string) => void;
+    startNewWeek: () => void;
+    dismissNewWeekBanner: () => void;
+
     resetStore: () => void;
 }
 
@@ -176,22 +210,23 @@ export const useScheduleStore = create<ScheduleStore>()(
             calendarEvents: [],
             weekHistory: [],
 
+            // Multi-week defaults
+            weeks: {},
+            currentWeekKey: getMondayOfWeek(),
+            browsingWeekKey: null,
+            newWeekArchived: null,
+
             // Gamification defaults
             xp: 0,
             earnedBadges: [],
             streakFreezes: 1,
             streakFreezeUsedThisWeek: false,
             gamificationEnabled: true,
+            levelUpModal: null,
 
             // Journal defaults
-            journal: {
-                mon: { ...DEFAULT_JOURNAL },
-                tue: { ...DEFAULT_JOURNAL },
-                wed: { ...DEFAULT_JOURNAL },
-                thu: { ...DEFAULT_JOURNAL },
-                fri: { ...DEFAULT_JOURNAL },
-                sat: { ...DEFAULT_JOURNAL },
-                sun: { ...DEFAULT_JOURNAL },
+            journalsByWeek: {
+                [getMondayOfWeek()]: createEmptyJournalWeek(),
             },
 
             // Settings defaults
@@ -376,10 +411,10 @@ export const useScheduleStore = create<ScheduleStore>()(
 
             updateStreak: (completed) =>
                 set((state) => {
-                    const today = new Date().toISOString().split("T")[0];
+                    const today = toLocalISODate();
                     if (!completed) return state;
 
-                    const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+                    const yesterday = addDaysToISODate(today, -1);
                     const isConsecutive = state.lastCompletedDate === yesterday || state.lastCompletedDate === today;
 
                     return {
@@ -395,7 +430,33 @@ export const useScheduleStore = create<ScheduleStore>()(
             setFocusBlock: (id) => set({ focusBlockId: id }),
 
             // Gamification actions
-            addXP: (amount) => set((state) => ({ xp: state.xp + amount })),
+            addXP: (amount) => set((state) => {
+                if (!state.gamificationEnabled) return { xp: Math.max(0, state.xp + amount) };
+
+                const oldLevelInfo = getLevelInfo(state.xp);
+                const newXp = Math.max(0, state.xp + amount);
+                const newLevelInfo = getLevelInfo(newXp);
+                
+                const leveledUp = newLevelInfo.level > oldLevelInfo.level;
+                
+                if (amount > 0) {
+                    toast.success(`+${amount} XP!`, {
+                        icon: "✨",
+                        style: {
+                            background: "#0f0f15",
+                            color: "#fff",
+                            border: "1px solid rgba(255, 255, 255, 0.05)",
+                            borderRadius: "16px",
+                            fontFamily: "inherit",
+                        }
+                    });
+                }
+                
+                return {
+                    xp: newXp,
+                    levelUpModal: leveledUp ? { level: newLevelInfo.level, title: newLevelInfo.title } : state.levelUpModal
+                };
+            }),
             unlockBadge: (badgeId) => set((state) => {
                 if (state.earnedBadges.some(b => b.id === badgeId)) return state;
                 return {
@@ -406,14 +467,22 @@ export const useScheduleStore = create<ScheduleStore>()(
                 streakFreezes: Math.max(0, state.streakFreezes - 1),
                 streakFreezeUsedThisWeek: true,
             })),
+            setLevelUpModal: (modal) => set({ levelUpModal: modal }),
 
             // Journal actions
-            updateJournal: (day, entry) => set((state) => ({
-                journal: {
-                    ...state.journal,
-                    [day]: { ...(state.journal?.[day] || DEFAULT_JOURNAL), ...entry }
-                }
-            })),
+            updateJournal: (day, entry) => set((state) => {
+                const viewedWeekKey = state.browsingWeekKey || state.currentWeekKey;
+                const currentJournalWeek = state.journalsByWeek[viewedWeekKey] || createEmptyJournalWeek();
+                return {
+                    journalsByWeek: {
+                        ...state.journalsByWeek,
+                        [viewedWeekKey]: {
+                            ...currentJournalWeek,
+                            [day]: { ...(currentJournalWeek[day] || DEFAULT_JOURNAL), ...entry },
+                        },
+                    },
+                };
+            }),
 
             // Settings actions
             updateSettings: (settings) => set(settings),
@@ -439,7 +508,9 @@ export const useScheduleStore = create<ScheduleStore>()(
                 if (!ev || !ev.originalStart || !ev.originalEnd) return;
 
                 try {
-                    const apiUpdates: any = {};
+                    // When events are stored as mins-from-midnight, updates can exceed 1440 if user shifts date.
+                    // We apply the minute-of-day on the original date anchor and let the UI handle date changes separately.
+                    const apiUpdates: GoogleEventUpdate = {};
                     if (updates.startMins !== undefined) {
                         const d = new Date(ev.originalStart);
                         d.setHours(Math.floor(updates.startMins / 60), updates.startMins % 60, 0, 0);
@@ -481,63 +552,208 @@ export const useScheduleStore = create<ScheduleStore>()(
 
             archiveCurrentWeek: () =>
                 set((state) => {
-                    let totalSleepMins = 0;
-                    let totalDayScore = 0;
-                    const categoryBreakdown: Record<string, number> = {};
+                    const currentWeekData = state.weeks[state.currentWeekKey] || state.week;
+                    const { totalSleepMins, totalDayScore, completedBlocks, totalBlocks, categoryBreakdown } = computeWeekAggregate(currentWeekData);
 
-                    DAY_KEYS.forEach((dk) => {
-                        const dayData = state.week[dk];
-                        if (!dayData) return;
-                        const { sleepTime, totalNapMins, dayScore } = computeSchedule(dayData);
-                        totalDayScore += dayScore;
-
-                        const wakeMins = dayData.actualWakeTime ?? dayData.wakeTime;
-                        const effSleep = dayData.actualSleepTime ?? sleepTime;
-                        let sleepDur = 0;
-                        
-                        if (dayData.actualSleepTime != null && dayData.actualSleepDate && dayData.actualWakeDate) {
-                            const sleepDate = new Date(dayData.actualSleepDate);
-                            const wakeDate = new Date(dayData.actualWakeDate);
-                            const sleepAbsolute = sleepDate.getTime() / 60000 + (dayData.actualSleepTime % 1440);
-                            const wakeAbsolute = wakeDate.getTime() / 60000 + (wakeMins % 1440);
-                            sleepDur = Math.abs(wakeAbsolute - sleepAbsolute);
-                        } else if (effSleep <= 24 * 60) {
-                            sleepDur = (24 * 60 - effSleep) + wakeMins;
-                        } else {
-                            sleepDur = wakeMins - (effSleep - 24 * 60);
-                        }
-                        sleepDur += totalNapMins;
-                        totalSleepMins += Math.max(0, sleepDur);
-
-                        dayData.blocks.forEach((b) => {
-                            if (!b.on) return;
-                            categoryBreakdown[b.type] = (categoryBreakdown[b.type] || 0) + b.dur;
-                        });
-                    });
-
-                    const now = new Date();
-                    const mondayOfThisWeek = new Date(now);
-                    mondayOfThisWeek.setDate(now.getDate() - ((now.getDay() + 6) % 7));
-                    const sundayOfThisWeek = new Date(mondayOfThisWeek);
-                    sundayOfThisWeek.setDate(mondayOfThisWeek.getDate() + 6);
-
-                    const fmt = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-                    const weekLabel = `${fmt(mondayOfThisWeek)} – ${fmt(sundayOfThisWeek)}, ${sundayOfThisWeek.getFullYear()}`;
+                    const weekKey = state.currentWeekKey;
+                    const weekLabel = getWeekLabel(weekKey);
 
                     const snapshot: WeekSnapshot = {
                         id: nanoid(),
+                        weekKey,
                         weekLabel,
-                        dateArchived: now.toISOString(),
+                        dateArchived: new Date().toISOString(),
                         totalSleepHours: parseFloat((totalSleepMins / 60).toFixed(1)),
                         avgSleepHours: parseFloat((totalSleepMins / 60 / 7).toFixed(1)),
                         sleepDebtHours: parseFloat((Math.max(0, 7 * 7 - totalSleepMins / 60)).toFixed(1)),
                         dayScore: parseFloat((totalDayScore / 7).toFixed(1)),
                         categoryBreakdown,
-                        weekData: JSON.parse(JSON.stringify(state.week)),
+                        weekData: JSON.parse(JSON.stringify(currentWeekData)),
+                        completedBlocks,
+                        totalBlocks,
+                        xpEarned: completedBlocks * 10,
                     };
 
-                    return { weekHistory: [...state.weekHistory, snapshot] };
+                    // Also save into the weeks map
+                    const updatedWeeks = {
+                        ...state.weeks,
+                        [weekKey]: JSON.parse(JSON.stringify(currentWeekData)),
+                    };
+
+                    // Check for duplicate archive
+                    const alreadyArchived = state.weekHistory.some(s => s.weekKey === weekKey);
+                    if (alreadyArchived) {
+                        return { weeks: updatedWeeks };
+                    }
+
+                    return { weekHistory: [...state.weekHistory, snapshot], weeks: updatedWeeks };
                 }),
+
+            // Week Navigation
+            navigateWeek: (direction) =>
+                set((state) => {
+                    const currentBrowsing = state.browsingWeekKey || state.currentWeekKey;
+                    const newKey = addWeeksToMondayKey(currentBrowsing, direction === 'next' ? 1 : -1);
+                    
+                    // Don't go into the future beyond current week
+                    if (newKey > state.currentWeekKey) {
+                        return { browsingWeekKey: null, week: state.weeks[state.currentWeekKey] || state.week };
+                    }
+
+                    // Save current view before switching
+                    const saveKey = state.browsingWeekKey || state.currentWeekKey;
+                    const updatedWeeks = {
+                        ...state.weeks,
+                        [saveKey]: JSON.parse(JSON.stringify(state.week)),
+                    };
+
+                    // Also persist the journal for the viewed week key (so week switches never lose journal edits)
+                    const viewedJournalKey = saveKey;
+                    const updatedJournalsByWeek = {
+                        ...state.journalsByWeek,
+                        [viewedJournalKey]: state.journalsByWeek[viewedJournalKey] || createEmptyJournalWeek(),
+                    };
+
+                    // If navigating back to current week
+                    if (newKey === state.currentWeekKey) {
+                        const weekData = updatedWeeks[state.currentWeekKey] || state.week;
+                        return { browsingWeekKey: null, week: weekData, weeks: updatedWeeks, journalsByWeek: updatedJournalsByWeek };
+                    }
+
+                    // Load target week from weeks map, or from weekHistory, or create empty
+                    let targetWeek = updatedWeeks[newKey];
+                    if (!targetWeek) {
+                        const historyEntry = state.weekHistory.find(s => s.weekKey === newKey);
+                        if (historyEntry) {
+                            targetWeek = JSON.parse(JSON.stringify(historyEntry.weekData));
+                        }
+                    }
+                    if (!targetWeek) {
+                        // Empty week — no data for this period
+                        targetWeek = {
+                            mon: createMonday(), tue: createTuesday(), wed: createWednesday(),
+                            thu: createThursday(), fri: createFriday(), sat: createSaturday(), sun: createSunday(),
+                        };
+                    }
+
+                    return { browsingWeekKey: newKey, week: targetWeek, weeks: updatedWeeks, journalsByWeek: updatedJournalsByWeek };
+                }),
+
+            jumpToCurrentWeek: () =>
+                set((state) => {
+                    if (!state.browsingWeekKey) return state;
+                    // Save browsed week
+                    const updatedWeeks = {
+                        ...state.weeks,
+                        [state.browsingWeekKey]: JSON.parse(JSON.stringify(state.week)),
+                    };
+                    const currentWeekData = updatedWeeks[state.currentWeekKey] || state.week;
+                    const updatedJournalsByWeek = {
+                        ...state.journalsByWeek,
+                        [state.browsingWeekKey]: state.journalsByWeek[state.browsingWeekKey] || createEmptyJournalWeek(),
+                    };
+                    return { browsingWeekKey: null, week: currentWeekData, weeks: updatedWeeks, journalsByWeek: updatedJournalsByWeek };
+                }),
+
+            viewWeekByKey: (weekKey) =>
+                set((state) => {
+                    if (weekKey === state.currentWeekKey) {
+                        return { browsingWeekKey: null, currentTab: 'schedule' as AppTab };
+                    }
+                    // Save current view
+                    const saveKey = state.browsingWeekKey || state.currentWeekKey;
+                    const updatedWeeks = {
+                        ...state.weeks,
+                        [saveKey]: JSON.parse(JSON.stringify(state.week)),
+                    };
+                    const updatedJournalsByWeek = {
+                        ...state.journalsByWeek,
+                        [saveKey]: state.journalsByWeek[saveKey] || createEmptyJournalWeek(),
+                    };
+                    // Load target
+                    let targetWeek = updatedWeeks[weekKey];
+                    if (!targetWeek) {
+                        const historyEntry = state.weekHistory.find(s => s.weekKey === weekKey);
+                        if (historyEntry) {
+                            targetWeek = JSON.parse(JSON.stringify(historyEntry.weekData));
+                        }
+                    }
+                    if (!targetWeek) {
+                        targetWeek = {
+                            mon: createMonday(), tue: createTuesday(), wed: createWednesday(),
+                            thu: createThursday(), fri: createFriday(), sat: createSaturday(), sun: createSunday(),
+                        };
+                    }
+                    return { browsingWeekKey: weekKey, week: targetWeek, weeks: updatedWeeks, journalsByWeek: updatedJournalsByWeek, currentTab: 'schedule' as AppTab };
+                }),
+
+            startNewWeek: () =>
+                set((state) => {
+                    const newMondayKey = getMondayOfWeek();
+                    if (newMondayKey === state.currentWeekKey) return state; // same week
+                    const currentWeekData = state.weeks[state.currentWeekKey] || state.week;
+
+                    // Archive current week first
+                    const { totalSleepMins, totalDayScore, completedBlocks, totalBlocks, categoryBreakdown } = computeWeekAggregate(currentWeekData);
+
+                    const oldWeekKey = state.currentWeekKey;
+                    const snapshot: WeekSnapshot = {
+                        id: nanoid(),
+                        weekKey: oldWeekKey,
+                        weekLabel: getWeekLabel(oldWeekKey),
+                        dateArchived: new Date().toISOString(),
+                        totalSleepHours: parseFloat((totalSleepMins / 60).toFixed(1)),
+                        avgSleepHours: parseFloat((totalSleepMins / 60 / 7).toFixed(1)),
+                        sleepDebtHours: parseFloat((Math.max(0, 7 * 7 - totalSleepMins / 60)).toFixed(1)),
+                        dayScore: parseFloat((totalDayScore / 7).toFixed(1)),
+                        categoryBreakdown,
+                        weekData: JSON.parse(JSON.stringify(currentWeekData)),
+                        completedBlocks,
+                        totalBlocks,
+                        xpEarned: completedBlocks * 10,
+                    };
+
+                    const alreadyArchived = state.weekHistory.some(s => s.weekKey === oldWeekKey);
+
+                    // Create fresh week by copying block templates (reset completed/actuals)
+                    const freshWeek: Record<DayKey, DayData> = {} as Record<DayKey, DayData>;
+                    DAY_KEYS.forEach((dk) => {
+                        const oldDay = currentWeekData[dk];
+                        freshWeek[dk] = {
+                            wakeTime: oldDay.wakeTime,
+                            workStart: oldDay.workStart,
+                            sleepTarget: oldDay.sleepTarget,
+                            commuteMins: oldDay.commuteMins,
+                            blocks: oldDay.blocks.map(b => ({
+                                ...b,
+                                completed: false,
+                                actualStart: null,
+                                actualStartDate: null,
+                            })),
+                            actualWakeTime: null,
+                            actualSleepTime: null,
+                        };
+                    });
+
+                    return {
+                        week: freshWeek,
+                        currentWeekKey: newMondayKey,
+                        browsingWeekKey: null,
+                        weekHistory: alreadyArchived ? state.weekHistory : [...state.weekHistory, snapshot],
+                        weeks: {
+                            ...state.weeks,
+                            [oldWeekKey]: JSON.parse(JSON.stringify(currentWeekData)),
+                            [newMondayKey]: freshWeek,
+                        },
+                        newWeekArchived: alreadyArchived ? null : snapshot,
+                        journalsByWeek: {
+                            ...state.journalsByWeek,
+                            [newMondayKey]: state.journalsByWeek[newMondayKey] || createEmptyJournalWeek(),
+                        },
+                    };
+                }),
+
+            dismissNewWeekBanner: () => set({ newWeekArchived: null }),
 
             resetStore: () => set({
                 selectedDay: "mon",
@@ -550,19 +766,18 @@ export const useScheduleStore = create<ScheduleStore>()(
                 googleToken: null,
                 calendarEvents: [],
                 weekHistory: [],
+                weeks: {},
+                currentWeekKey: getMondayOfWeek(),
+                browsingWeekKey: null,
+                newWeekArchived: null,
                 xp: 0,
                 earnedBadges: [],
                 streakFreezes: 1,
                 streakFreezeUsedThisWeek: false,
                 gamificationEnabled: true,
-                journal: {
-                    mon: { ...DEFAULT_JOURNAL },
-                    tue: { ...DEFAULT_JOURNAL },
-                    wed: { ...DEFAULT_JOURNAL },
-                    thu: { ...DEFAULT_JOURNAL },
-                    fri: { ...DEFAULT_JOURNAL },
-                    sat: { ...DEFAULT_JOURNAL },
-                    sun: { ...DEFAULT_JOURNAL },
+                levelUpModal: null,
+                journalsByWeek: {
+                    [getMondayOfWeek()]: createEmptyJournalWeek(),
                 },
                 pomodoroWork: 25,
                 pomodoroBreak: 5,
@@ -598,8 +813,18 @@ export function setCloudUserId(userId: string | null) {
 
 function getCloudPayload() {
     const s = useScheduleStore.getState();
+    // Before syncing, save current week into weeks map
+    const saveKey = s.browsingWeekKey || s.currentWeekKey;
+    const weeks = { ...s.weeks, [saveKey]: JSON.parse(JSON.stringify(s.week)) };
+    const canonicalCurrentWeek = weeks[s.currentWeekKey] || s.week;
+    const journalsByWeek = {
+        ...s.journalsByWeek,
+        [s.currentWeekKey]: s.journalsByWeek[s.currentWeekKey] || createEmptyJournalWeek(),
+    };
     return {
-        week: s.week,
+        week: canonicalCurrentWeek,
+        weeks,
+        currentWeekKey: s.currentWeekKey,
         categories: s.categories,
         quickNotes: s.quickNotes,
         streak: s.streak,
@@ -611,7 +836,7 @@ function getCloudPayload() {
         streakFreezes: s.streakFreezes,
         streakFreezeUsedThisWeek: s.streakFreezeUsedThisWeek,
         gamificationEnabled: s.gamificationEnabled,
-        journal: s.journal,
+        journalsByWeek,
         pomodoroWork: s.pomodoroWork,
         pomodoroBreak: s.pomodoroBreak,
         pomodoroLongBreak: s.pomodoroLongBreak,
@@ -639,8 +864,24 @@ export async function hydrateFromCloud(userId: string) {
         return false;
     }
 
+    const todayMondayKey = getMondayOfWeek();
+    const storedWeekKey = cloud.currentWeekKey || todayMondayKey;
+    const cloudWeeks = cloud.weeks || {};
+    const hydratedWeek = cloudWeeks[storedWeekKey] || cloud.week;
+    const journalsByWeek =
+        cloud.journalsByWeek ||
+        (cloud.journal ? { [storedWeekKey]: cloud.journal } : {});
+    const hydratedJournals = {
+        ...journalsByWeek,
+        [storedWeekKey]: journalsByWeek[storedWeekKey] || createEmptyJournalWeek(),
+    };
+
     useScheduleStore.setState({
-        week: cloud.week,
+        week: hydratedWeek,
+        weeks: cloudWeeks,
+        currentWeekKey: storedWeekKey,
+        browsingWeekKey: null,
+        newWeekArchived: null,
         categories: cloud.categories && cloud.categories.length > 0 ? cloud.categories : DEFAULT_CATEGORIES,
         quickNotes: cloud.quickNotes ?? "",
         streak: cloud.streak ?? 0,
@@ -652,14 +893,21 @@ export async function hydrateFromCloud(userId: string) {
         streakFreezes: cloud.streakFreezes ?? 1,
         streakFreezeUsedThisWeek: cloud.streakFreezeUsedThisWeek ?? false,
         gamificationEnabled: cloud.gamificationEnabled ?? true,
-        journal: cloud.journal ?? useScheduleStore.getState().journal,
+        journalsByWeek: hydratedJournals,
         pomodoroWork: cloud.pomodoroWork ?? 25,
         pomodoroBreak: cloud.pomodoroBreak ?? 5,
         pomodoroLongBreak: cloud.pomodoroLongBreak ?? 15,
         pomodoroSessions: cloud.pomodoroSessions ?? 4,
         accentColor: cloud.accentColor ?? "indigo",
         compactMode: cloud.compactMode ?? false,
+        levelUpModal: null,
     });
+
+    // Auto-archive: if the stored week belongs to a past calendar week, start a new one
+    if (storedWeekKey < todayMondayKey) {
+        useScheduleStore.getState().startNewWeek();
+    }
+
     return true;
 }
 

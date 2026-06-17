@@ -44,7 +44,7 @@ export default function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
             </div>
 
             {/* Tab Navigation */}
-            <div className="flex items-center gap-1 bg-zinc-900/50 backdrop-blur-md rounded-xl p-1 border border-zinc-800/50">
+            <div className="flex items-center gap-1 bg-zinc-900/50 backdrop-blur-md rounded-xl p-1 border border-zinc-800/50 overflow-x-auto hide-scrollbar max-w-full">
                 {TABS.map((tab) => (
                     <button
                         key={tab.id}
@@ -74,8 +74,8 @@ export default function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
                             className="flex items-center gap-2 hover:opacity-80 transition-opacity"
                         >
                             <img
-                                src={user.picture}
-                                alt={user.name}
+                                src={user.picture || undefined}
+                                alt={user.name || undefined}
                                 className="w-8 h-8 rounded-full border-2 border-zinc-800 hover:border-zinc-600 transition-colors"
                                 referrerPolicy="no-referrer"
                             />
@@ -87,8 +87,8 @@ export default function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
                                 <div className="absolute right-0 top-12 z-50 bg-zinc-950 border border-zinc-800 rounded-xl shadow-2xl shadow-black/60 p-4 min-w-[220px]">
                                     <div className="flex items-center gap-3 mb-4 pb-4 border-b border-zinc-800">
                                         <img
-                                            src={user.picture}
-                                            alt={user.name}
+                                            src={user.picture || undefined}
+                                            alt={user.name || undefined}
                                             className="w-10 h-10 rounded-full"
                                             referrerPolicy="no-referrer"
                                         />

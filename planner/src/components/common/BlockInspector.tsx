@@ -1,26 +1,17 @@
 import { useScheduleStore } from "../../store/useScheduleStore";
 import { computeSchedule } from "../../engine/computeSchedule";
-
-function minsToTimeStr(mins: number) {
-    const h = Math.floor(mins / 60) % 24;
-    const m = mins % 60;
-    return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
-}
-
-function timeStrToMins(timeStr: string) {
-    if (!timeStr) return null;
-    const [h, m] = timeStr.split(":").map(Number);
-    return h * 60 + m;
-}
+import { getDateForDayKeyInWeek } from "../../utils/dateUtils";
+import { minsToTimeStr, parseTimeInput } from "../../utils/timeUtils";
 
 export default function BlockInspector() {
-    const { selectedDay, week, focusBlockId, updateBlock } = useScheduleStore();
+    const { selectedDay, week, focusBlockId, updateBlock, currentWeekKey, browsingWeekKey } = useScheduleStore();
     const day = week[selectedDay];
 
     if (!day || !focusBlockId) return null;
 
-    const { scheduled } = computeSchedule(day, useScheduleStore.getState().calendarEvents);
-    const block = scheduled.find((b: any) => b.id === focusBlockId);
+    const refDate = getDateForDayKeyInWeek(selectedDay, browsingWeekKey || currentWeekKey);
+    const { scheduled } = computeSchedule(day, useScheduleStore.getState().calendarEvents, { referenceDate: refDate });
+    const block = scheduled.find((b) => b.id === focusBlockId);
     
     // We allow normal blocks OR google blocks
     const isGoogle = block?.source === "google";
@@ -35,10 +26,13 @@ export default function BlockInspector() {
     }
 
     const handleStartChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const mins = timeStrToMins(e.target.value);
+        const mins = parseTimeInput(e.target.value, 23);
         if (mins !== null) {
             if (isGoogle) {
-                useScheduleStore.getState().syncCalendarEventUpdate(block.originalEvent.id, { startMins: mins, endMins: mins + block.dur });
+                const originalEventId = block.originalEvent?.id;
+                if (originalEventId) {
+                    useScheduleStore.getState().syncCalendarEventUpdate(originalEventId, { startMins: mins, endMins: mins + block.dur });
+                }
             } else {
                 updateBlock(selectedDay, block.id, { actualStart: mins });
             }
@@ -46,7 +40,7 @@ export default function BlockInspector() {
     };
 
     const handleEndChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const newEndMins = timeStrToMins(e.target.value);
+        const newEndMins = parseTimeInput(e.target.value, 23);
         if (newEndMins !== null) {
             let newDur = newEndMins - block.start;
             if (newDur < 0 && newEndMins < 12 * 60) {
@@ -54,7 +48,10 @@ export default function BlockInspector() {
             }
             if (newDur > 0) {
                 if (isGoogle) {
-                    useScheduleStore.getState().syncCalendarEventUpdate(block.originalEvent.id, { endMins: block.start + newDur });
+                    const originalEventId = block.originalEvent?.id;
+                    if (originalEventId) {
+                        useScheduleStore.getState().syncCalendarEventUpdate(originalEventId, { endMins: block.start + newDur });
+                    }
                 } else {
                     updateBlock(selectedDay, block.id, { dur: newDur });
                 }
@@ -68,7 +65,7 @@ export default function BlockInspector() {
                 <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
                     {isGoogle ? "Google Event Details" : "Block Details"}
                 </h3>
-                {!isGoogle && (realBlock as any).actualStart != null && (
+                {!isGoogle && "actualStart" in realBlock && realBlock.actualStart != null && (
                     <button 
                         onClick={() => updateBlock(selectedDay, block.id, { actualStart: null })}
                         className="text-[10px] text-rose-500 hover:text-rose-400 font-bold uppercase tracking-widest transition-colors flex items-center gap-1 bg-rose-500/10 hover:bg-rose-500/20 px-2 py-0.5 rounded"

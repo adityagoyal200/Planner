@@ -1,39 +1,24 @@
 import type { DayData } from "../types/schedule";
 import type { DayKey } from "../store/useScheduleStore";
 import { computeSchedule } from "./computeSchedule";
-import { getDateForDayKey } from "../utils/dateUtils";
+import { getDateForDayKeyInWeek } from "../utils/dateUtils";
+import { getTotalSleepDurationMins } from "../utils/sleepUtils";
 
 export interface Insight {
     text: string;
     type: "positive" | "neutral" | "warning";
 }
 
-function getSleepHoursForDay(day: DayData, dayKey: DayKey): number {
-    const refDate = getDateForDayKey(dayKey);
+function getSleepHoursForDay(day: DayData, dayKey: DayKey, weekKey: string): number {
+    const refDate = getDateForDayKeyInWeek(dayKey, weekKey);
     const { sleepTime, totalNapMins } = computeSchedule(day, [], { referenceDate: refDate });
-    const wakeMins = day.actualWakeTime ?? day.wakeTime;
-    const effectiveSleep = day.actualSleepTime ?? sleepTime;
-
-    let sleepDur = 0;
-    if (day.actualSleepTime != null && day.actualSleepDate && day.actualWakeDate) {
-        const sd = new Date(day.actualSleepDate).getTime() / 60000 + (day.actualSleepTime % 1440);
-        const wd = new Date(day.actualWakeDate).getTime() / 60000 + (wakeMins % 1440);
-        let diff = wd - sd;
-        if (diff < 0) diff += 1440;
-        if (diff > 1440) diff -= 1440;
-        sleepDur = diff;
-    } else if (effectiveSleep <= 1440) {
-        sleepDur = (1440 - effectiveSleep) + wakeMins;
-    } else {
-        sleepDur = wakeMins - (effectiveSleep - 1440);
-    }
-    sleepDur += totalNapMins;
-    return sleepDur / 60;
+    return getTotalSleepDurationMins(day, sleepTime, totalNapMins) / 60;
 }
 
 export function generateInsights(
     week: Record<DayKey, DayData>,
-    streak: number
+    streak: number,
+    weekKey: string
 ): Insight[] {
     const days: DayKey[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
     const dayLabels: Record<DayKey, string> = {
@@ -43,7 +28,7 @@ export function generateInsights(
     const insights: Insight[] = [];
 
     // === Sleep Insights ===
-    const sleepHours = days.map(d => getSleepHoursForDay(week[d], d));
+    const sleepHours = days.map(d => getSleepHoursForDay(week[d], d, weekKey));
     const avgSleep = sleepHours.reduce((a, b) => a + b, 0) / 7;
     const avgTarget = days.reduce((a, d) => a + week[d].sleepTarget, 0) / 7 / 60;
 
@@ -108,7 +93,7 @@ export function generateInsights(
     }
 
     // Deep work hours
-    const deepWorkMins = (catTotals["work"] || 0) + (catTotals["study"] || 0) + (catTotals["aim"] || 0);
+    const deepWorkMins = (catTotals["work"] || 0) + (catTotals["study"] || 0);
     if (deepWorkMins > 0) {
         const dwHours = (deepWorkMins / 60).toFixed(1);
         insights.push({

@@ -3,25 +3,37 @@ import { Play, Pause, RotateCcw } from "lucide-react";
 import { useScheduleStore } from "../../store/useScheduleStore";
 
 export default function FocusTimer() {
-    const { focusBlockId, week, selectedDay } = useScheduleStore();
+    const { focusBlockId, week, selectedDay, pomodoroWork, updateBlock, browsingWeekKey } = useScheduleStore();
     const day = week[selectedDay];
     
     const block = day?.blocks.find(b => b.id === focusBlockId);
+    const isReadOnly = !!browsingWeekKey;
     
-    // Default 25 minutes
-    const DEFAULT_TIME = 25 * 60;
-    const [timeLeft, setTimeLeft] = useState(DEFAULT_TIME);
+    const timerDuration = pomodoroWork * 60;
+    const [timeLeft, setTimeLeft] = useState(timerDuration);
     const [isRunning, setIsRunning] = useState(false);
+
+    // Reset timer when pomodoroWork setting changes
+    useEffect(() => {
+        const resetTimer = setTimeout(() => {
+            setTimeLeft(pomodoroWork * 60);
+            setIsRunning(false);
+        }, 0);
+        return () => clearTimeout(resetTimer);
+    }, [pomodoroWork]);
 
     useEffect(() => {
         let interval: ReturnType<typeof setInterval>;
         if (isRunning && timeLeft > 0) {
             interval = setInterval(() => {
-                setTimeLeft((prev) => prev - 1);
+                setTimeLeft((prev) => {
+                    if (prev <= 1) {
+                        setIsRunning(false);
+                        return 0;
+                    }
+                    return prev - 1;
+                });
             }, 1000);
-        } else if (timeLeft === 0) {
-            setIsRunning(false);
-            // Could play a sound here
         }
         return () => clearInterval(interval);
     }, [isRunning, timeLeft]);
@@ -29,12 +41,12 @@ export default function FocusTimer() {
     const toggle = () => setIsRunning(!isRunning);
     const reset = () => {
         setIsRunning(false);
-        setTimeLeft(DEFAULT_TIME);
+        setTimeLeft(timerDuration);
     };
 
     const mins = Math.floor(timeLeft / 60).toString().padStart(2, "0");
     const secs = (timeLeft % 60).toString().padStart(2, "0");
-    const progress = ((DEFAULT_TIME - timeLeft) / DEFAULT_TIME) * 100;
+    const progress = ((timerDuration - timeLeft) / timerDuration) * 100;
 
     return (
         <div className="glass-card rounded-2xl p-5 relative overflow-hidden group">
@@ -81,6 +93,30 @@ export default function FocusTimer() {
                         <RotateCcw className="w-4 h-4" />
                     </button>
                 </div>
+
+                {block && !block.completed && !isReadOnly && (
+                    <button
+                        onClick={() => {
+                            updateBlock(selectedDay, block.id, { completed: true });
+                            useScheduleStore.getState().addXP(10);
+                        }}
+                        className="mt-6 w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs uppercase tracking-widest rounded-xl transition-all duration-300 hover:scale-[1.02] shadow-[0_0_15px_rgba(16,185,129,0.2)] cursor-pointer"
+                    >
+                        <svg className="w-4.5 h-4.5 stroke-[3.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                        Complete Block (+10 XP)
+                    </button>
+                )}
+
+                {block && block.completed && (
+                    <div className="mt-6 w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-emerald-950/20 border border-emerald-500/20 text-emerald-400 font-bold text-xs uppercase tracking-widest rounded-xl select-none">
+                        <svg className="w-4.5 h-4.5 stroke-[3.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                        Block Completed!
+                    </div>
+                )}
             </div>
         </div>
     );

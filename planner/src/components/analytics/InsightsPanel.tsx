@@ -1,9 +1,10 @@
 import { useScheduleStore } from "../../store/useScheduleStore";
-import { generateInsights } from "../../engine/insightsEngine";
+import { computeWeeklyInsights } from "../../services/analyticsService";
 
 export default function InsightsPanel() {
-    const { week, streak } = useScheduleStore();
-    const insights = generateInsights(week, streak);
+    const { week, streak, currentWeekKey, browsingWeekKey } = useScheduleStore();
+    const weekKey = browsingWeekKey || currentWeekKey;
+    const insights = computeWeeklyInsights(week, streak, weekKey);
 
     if (insights.length === 0) return null;
 
