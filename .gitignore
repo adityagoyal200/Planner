@@ -1,0 +1,12 @@
+# Cursor IDE (local plans, rules — never commit)
+.cursor/
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Env / secrets
+.env
+.env.*
+!.env.example
