@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { nanoid } from "nanoid";
-import type { Block, BlockCategory } from "../types/block";
+import type { Block, BlockCategory, Subtask } from "../types/block";
 import type { DayData } from "../types/schedule";
 import { type CalendarEvent, type GoogleEventUpdate, updateGoogleEventAuthenticated } from "../services/googleCalendar";
 import { getLevelInfo } from "../engine/xpEngine";
@@ -61,7 +61,7 @@ export interface WeekSnapshot {
     xpEarned: number;
 }
 
-export type AppTab = 'schedule' | 'analytics' | 'journal' | 'settings';
+export type AppTab = 'schedule' | 'analytics' | 'journal' | 'habits' | 'settings';
 
 export interface JournalEntry {
     mood: number | null;        // 1-5
@@ -89,6 +89,31 @@ function createEmptyJournalWeek(): Record<DayKey, JournalEntry> {
         sat: { ...DEFAULT_JOURNAL },
         sun: { ...DEFAULT_JOURNAL },
     };
+}
+
+// ── Habit Tracker Types ──
+
+export interface Habit {
+    id: string;
+    name: string;
+    emoji: string;
+    frequency: 'daily' | 'weekdays' | 'custom';
+    customDays?: DayKey[];   // only used when frequency === 'custom'
+    targetCount: number;     // how many times per day (usually 1)
+    createdAt: string;
+}
+
+export type HabitCompletions = Record<string, Record<DayKey, boolean>>;  // habitId → dayKey → done
+
+// ── Notification Preferences ──
+
+export interface NotificationPreferences {
+    enabled: boolean;
+    blockReminders: boolean;
+    sleepReminder: boolean;
+    streakAlert: boolean;
+    focusTimerDone: boolean;
+    reminderMinsBefore: number;   // minutes before block start
 }
 
 interface ScheduleStore {
@@ -136,6 +161,13 @@ interface ScheduleStore {
     // Journal
     journalsByWeek: Record<string, Record<DayKey, JournalEntry>>;
 
+    // Habits
+    habits: Habit[];
+    habitCompletionsByWeek: Record<string, HabitCompletions>;  // weekKey → completions
+
+    // Notifications
+    notificationPrefs: NotificationPreferences;
+
     // Settings
     pomodoroWork: number;
     pomodoroBreak: number;
@@ -166,6 +198,12 @@ interface ScheduleStore {
     insertBlock: (day: DayKey, type: string, id: string, orderedIds: string[]) => void;
     removeBlock: (day: DayKey, blockId: string) => void;
 
+    // Actions — Subtasks
+    addSubtask: (day: DayKey, blockId: string, text: string) => void;
+    toggleSubtask: (day: DayKey, blockId: string, subtaskId: string) => void;
+    removeSubtask: (day: DayKey, blockId: string, subtaskId: string) => void;
+    updateSubtask: (day: DayKey, blockId: string, subtaskId: string, text: string) => void;
+
     // Actions — Features
     updateQuickNotes: (notes: string) => void;
     updateStreak: (completed: boolean) => void;
@@ -179,6 +217,15 @@ interface ScheduleStore {
 
     // Actions — Journal
     updateJournal: (day: DayKey, entry: Partial<JournalEntry>) => void;
+
+    // Actions — Habits
+    addHabit: (habit: Habit) => void;
+    updateHabit: (habitId: string, updates: Partial<Habit>) => void;
+    removeHabit: (habitId: string) => void;
+    toggleHabitCompletion: (habitId: string, day: DayKey) => void;
+
+    // Actions — Notifications
+    updateNotificationPrefs: (prefs: Partial<NotificationPreferences>) => void;
 
     // Actions — Settings
     updateSettings: (settings: Partial<Pick<ScheduleStore, 'pomodoroWork' | 'pomodoroBreak' | 'pomodoroLongBreak' | 'pomodoroSessions' | 'accentColor' | 'compactMode' | 'gamificationEnabled' | 'durationDisplayUnit'>>) => void;
@@ -241,6 +288,20 @@ export const useScheduleStore = create<ScheduleStore>()(
             // Journal defaults
             journalsByWeek: {
                 [getMondayOfWeek()]: createEmptyJournalWeek(),
+            },
+
+            // Habit defaults
+            habits: [],
+            habitCompletionsByWeek: {},
+
+            // Notification defaults
+            notificationPrefs: {
+                enabled: false,
+                blockReminders: true,
+                sleepReminder: true,
+                streakAlert: true,
+                focusTimerDone: true,
+                reminderMinsBefore: 5,
             },
 
             // Settings defaults
@@ -401,10 +462,11 @@ export const useScheduleStore = create<ScheduleStore>()(
 
             insertBlock: (day, type, id, orderedIds) =>
                 set((state) => {
+                    const catName = state.categories.find(c => c.id === type)?.name || type;
                     const newBlock: Block = {
                         id,
                         type: type as Block["type"],
-                        label: `New ${type}`,
+                        label: catName,
                         dur: type === "nap" ? 60 : 30,
                         on: true,
                     };
@@ -439,6 +501,65 @@ export const useScheduleStore = create<ScheduleStore>()(
                         },
                     };
                 }),
+
+            // Subtask actions
+            addSubtask: (day, blockId, text) =>
+                set((state) => ({
+                    week: {
+                        ...state.week,
+                        [day]: {
+                            ...state.week[day],
+                            blocks: state.week[day].blocks.map((b) =>
+                                b.id === blockId
+                                    ? { ...b, subtasks: [...(b.subtasks || []), { id: nanoid(), text, done: false }] }
+                                    : b
+                            ),
+                        },
+                    },
+                })),
+
+            toggleSubtask: (day, blockId, subtaskId) =>
+                set((state) => {
+                    const blocks = state.week[day].blocks.map((b) => {
+                        if (b.id !== blockId) return b;
+                        const subtasks = (b.subtasks || []).map((s) =>
+                            s.id === subtaskId ? { ...s, done: !s.done } : s
+                        );
+                        const allDone = subtasks.length > 0 && subtasks.every(s => s.done);
+                        return { ...b, subtasks, completed: allDone ? true : b.completed };
+                    });
+                    return { week: { ...state.week, [day]: { ...state.week[day], blocks } } };
+                }),
+
+            removeSubtask: (day, blockId, subtaskId) =>
+                set((state) => ({
+                    week: {
+                        ...state.week,
+                        [day]: {
+                            ...state.week[day],
+                            blocks: state.week[day].blocks.map((b) =>
+                                b.id === blockId
+                                    ? { ...b, subtasks: (b.subtasks || []).filter((s) => s.id !== subtaskId) }
+                                    : b
+                            ),
+                        },
+                    },
+                })),
+
+            updateSubtask: (day, blockId, subtaskId, text) =>
+                set((state) => ({
+                    week: {
+                        ...state.week,
+                        [day]: {
+                            ...state.week[day],
+                            blocks: state.week[day].blocks.map((b) =>
+                                b.id === blockId
+                                    ? { ...b, subtasks: (b.subtasks || []).map((s) => s.id === subtaskId ? { ...s, text } : s) }
+                                    : b
+                            ),
+                        },
+                    },
+                })),
 
             updateQuickNotes: (notes) => set({ quickNotes: notes }),
 
@@ -516,6 +637,35 @@ export const useScheduleStore = create<ScheduleStore>()(
                     },
                 };
             }),
+
+            // Habit actions
+            addHabit: (habit) => set((state) => ({ habits: [...state.habits, habit] })),
+            updateHabit: (habitId, updates) => set((state) => ({
+                habits: state.habits.map(h => h.id === habitId ? { ...h, ...updates } : h)
+            })),
+            removeHabit: (habitId) => set((state) => ({
+                habits: state.habits.filter(h => h.id !== habitId)
+            })),
+            toggleHabitCompletion: (habitId, day) => set((state) => {
+                const weekKey = state.browsingWeekKey || state.currentWeekKey;
+                const weekCompletions = state.habitCompletionsByWeek[weekKey] || {};
+                const habitDays = weekCompletions[habitId] || ({} as Record<DayKey, boolean>);
+                const newDone = !habitDays[day];
+                return {
+                    habitCompletionsByWeek: {
+                        ...state.habitCompletionsByWeek,
+                        [weekKey]: {
+                            ...weekCompletions,
+                            [habitId]: { ...habitDays, [day]: newDone },
+                        },
+                    },
+                };
+            }),
+
+            // Notification actions
+            updateNotificationPrefs: (prefs) => set((state) => ({
+                notificationPrefs: { ...state.notificationPrefs, ...prefs },
+            })),
 
             // Settings actions
             updateSettings: (settings) => set(settings),
@@ -807,6 +957,16 @@ export const useScheduleStore = create<ScheduleStore>()(
                 journalsByWeek: {
                     [getMondayOfWeek()]: createEmptyJournalWeek(),
                 },
+                habits: [],
+                habitCompletionsByWeek: {},
+                notificationPrefs: {
+                    enabled: false,
+                    blockReminders: true,
+                    sleepReminder: true,
+                    streakAlert: true,
+                    focusTimerDone: true,
+                    reminderMinsBefore: 5,
+                },
                 pomodoroWork: 25,
                 pomodoroBreak: 5,
                 pomodoroLongBreak: 15,
@@ -886,6 +1046,9 @@ function getCloudPayload() {
         streakFreezeUsedThisWeek: s.streakFreezeUsedThisWeek,
         gamificationEnabled: s.gamificationEnabled,
         journalsByWeek,
+        habits: s.habits,
+        habitCompletionsByWeek: s.habitCompletionsByWeek,
+        notificationPrefs: s.notificationPrefs,
         pomodoroWork: s.pomodoroWork,
         pomodoroBreak: s.pomodoroBreak,
         pomodoroLongBreak: s.pomodoroLongBreak,
@@ -955,6 +1118,16 @@ export async function hydrateFromCloud(userId: string) {
         compactMode: cloud.compactMode ?? false,
         durationDisplayUnit: cloud.durationDisplayUnit === "hours" ? "hours" : "minutes",
         googleCalendarLinked: !!cloud.googleCalendarLinked,
+        habits: cloud.habits ?? [],
+        habitCompletionsByWeek: cloud.habitCompletionsByWeek ?? {},
+        notificationPrefs: cloud.notificationPrefs ?? {
+            enabled: false,
+            blockReminders: true,
+            sleepReminder: true,
+            streakAlert: true,
+            focusTimerDone: true,
+            reminderMinsBefore: 5,
+        },
         levelUpModal: null,
     });
 

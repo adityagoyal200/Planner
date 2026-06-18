@@ -7,6 +7,7 @@ const TABS: { id: AppTab; label: string; icon: string }[] = [
     { id: "schedule", label: "Schedule", icon: "📋" },
     { id: "analytics", label: "Analytics", icon: "📊" },
     { id: "journal", label: "Journal", icon: "📓" },
+    { id: "habits", label: "Habits", icon: "🎯" },
     { id: "settings", label: "Settings", icon: "⚙️" },
 ];
 

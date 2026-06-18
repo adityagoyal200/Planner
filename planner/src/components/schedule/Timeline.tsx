@@ -375,6 +375,7 @@ export default function Timeline() {
                                                                 <div className="flex-1">
                                                                     {canEditLabel ? (
                                                                         <input
+                                                                            key={`label-${block.id}-${block.label}`}
                                                                             type="text"
                                                                             defaultValue={block.label}
                                                                             onBlur={(e) => {
@@ -484,6 +485,94 @@ export default function Timeline() {
                                                             </div>
                                                         </div>
                                                     )}
+
+                                                    {/* Subtasks */}
+                                                    {!isVirtual && (() => {
+                                                        const realBlock = day.blocks.find(b => b.id === block.id);
+                                                        const subtasks = realBlock?.subtasks || [];
+                                                        const doneCount = subtasks.filter(s => s.done).length;
+                                                        const totalCount = subtasks.length;
+                                                        return (
+                                                            <div className="mt-3 pt-3 border-t border-white/5 relative z-10" onClick={(e) => e.stopPropagation()}>
+                                                                {totalCount > 0 && (
+                                                                    <div className="flex items-center gap-2 mb-2">
+                                                                        <div className="text-[10px] uppercase font-bold tracking-widest text-zinc-500">
+                                                                            Subtasks {doneCount}/{totalCount}
+                                                                        </div>
+                                                                        <div className="flex-1 h-1 bg-zinc-900 rounded-full overflow-hidden">
+                                                                            <div
+                                                                                className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-500"
+                                                                                style={{ width: `${totalCount > 0 ? (doneCount / totalCount) * 100 : 0}%` }}
+                                                                            />
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+                                                                <div className="space-y-1">
+                                                                    {subtasks.map(st => (
+                                                                        <div key={st.id} className="flex items-center gap-2 group/subtask">
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    if (isReadOnly) return;
+                                                                                    useScheduleStore.getState().toggleSubtask(selectedDay, block.id, st.id);
+                                                                                    // Check if all done after toggle
+                                                                                    const updated = useScheduleStore.getState().week[selectedDay].blocks.find(b => b.id === block.id);
+                                                                                    if (updated?.subtasks?.length && updated.subtasks.every(s => s.done) && !block.completed) {
+                                                                                        useScheduleStore.getState().addXP(10);
+                                                                                    }
+                                                                                }}
+                                                                                disabled={isReadOnly}
+                                                                                className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-all cursor-pointer ${
+                                                                                    st.done
+                                                                                        ? "bg-indigo-500/30 border-indigo-500/50 text-indigo-400"
+                                                                                        : "border-zinc-700 hover:border-zinc-500"
+                                                                                }`}
+                                                                            >
+                                                                                {st.done && (
+                                                                                    <svg className="w-2.5 h-2.5 stroke-[3]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                        <polyline points="20 6 9 17 4 12" />
+                                                                                    </svg>
+                                                                                )}
+                                                                            </button>
+                                                                            <span className={`text-xs flex-1 ${st.done ? "text-zinc-600 line-through" : "text-zinc-400"}`}>
+                                                                                {st.text}
+                                                                            </span>
+                                                                            {!isReadOnly && (
+                                                                                <button
+                                                                                    onClick={() => useScheduleStore.getState().removeSubtask(selectedDay, block.id, st.id)}
+                                                                                    className="text-zinc-800 hover:text-rose-400 opacity-0 group-hover/subtask:opacity-100 transition-all cursor-pointer"
+                                                                                >
+                                                                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                                                                        <path strokeLinecap="round" d="M6 18L18 6M6 6l12 12" />
+                                                                                    </svg>
+                                                                                </button>
+                                                                            )}
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                                {!isReadOnly && (
+                                                                    <form
+                                                                        onSubmit={(e) => {
+                                                                            e.preventDefault();
+                                                                            const input = (e.target as HTMLFormElement).elements.namedItem("subtask") as HTMLInputElement;
+                                                                            const text = input.value.trim();
+                                                                            if (text) {
+                                                                                useScheduleStore.getState().addSubtask(selectedDay, block.id, text);
+                                                                                input.value = "";
+                                                                            }
+                                                                        }}
+                                                                        className="mt-1.5"
+                                                                    >
+                                                                        <input
+                                                                            name="subtask"
+                                                                            type="text"
+                                                                            placeholder="+ Add subtask..."
+                                                                            className="w-full bg-transparent border-none text-xs text-zinc-500 placeholder:text-zinc-700 focus:text-zinc-300 focus:outline-none py-1 px-0"
+                                                                        />
+                                                                    </form>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })()}
                                                 </div>
                                             </div>
                                         );

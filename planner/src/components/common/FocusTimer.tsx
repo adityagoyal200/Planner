@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Play, Pause, RotateCcw } from "lucide-react";
 import { useScheduleStore } from "../../store/useScheduleStore";
+import { sendFocusTimerNotification } from "../../services/notificationService";
 
 export default function FocusTimer() {
     const { focusBlockId, week, selectedDay, pomodoroWork, updateBlock, browsingWeekKey } = useScheduleStore();
@@ -29,6 +30,7 @@ export default function FocusTimer() {
                 setTimeLeft((prev) => {
                     if (prev <= 1) {
                         setIsRunning(false);
+                        sendFocusTimerNotification();
                         return 0;
                     }
                     return prev - 1;

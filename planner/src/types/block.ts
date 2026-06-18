@@ -9,6 +9,12 @@ export interface BlockCategory {
 
 export type BlockType = string;
 
+export interface Subtask {
+    id: string;
+    text: string;
+    done: boolean;
+}
+
 export interface Block {
     id: string;
     type: BlockType; 
@@ -20,6 +26,7 @@ export interface Block {
     actualStart?: number | null;
     actualStartDate?: string | null;  // ISO date string e.g. "2026-06-09"
     completed?: boolean;
+    subtasks?: Subtask[];
 }
 
 export interface CalendarOverlap {

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 import Timeline from "../schedule/Timeline";
@@ -6,6 +6,7 @@ import SleepAnalysis from "../schedule/SleepAnalysis";
 import CalendarSync from "./CalendarSync";
 import AnalyticsDashboard from "../analytics/AnalyticsDashboard";
 import JournalPage from "../journal/JournalPage";
+import HabitTracker from "../habits/HabitTracker";
 import SettingsPage from "../settings/SettingsPage";
 import WeekNavigator from "../schedule/WeekNavigator";
 import NewWeekBanner from "../schedule/NewWeekBanner";
@@ -13,6 +14,7 @@ import { useScheduleStore } from "../../store/useScheduleStore";
 import { useGoogleCalendarSession } from "../../hooks/useGoogleCalendarSession";
 import { Toaster } from "react-hot-toast";
 import LevelUpModal from "./LevelUpModal";
+import { startNotificationScheduler, stopNotificationScheduler } from "../../services/notificationService";
 
 const ACCENT_MAP: Record<string, string> = {
     indigo: "#6366f1",
@@ -25,9 +27,19 @@ const ACCENT_MAP: Record<string, string> = {
 
 export default function DashboardLayout() {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-    const { currentTab, accentColor, compactMode } = useScheduleStore();
+    const { currentTab, accentColor, compactMode, notificationPrefs } = useScheduleStore();
 
     useGoogleCalendarSession();
+
+    // Notification scheduler lifecycle
+    useEffect(() => {
+        if (notificationPrefs.enabled) {
+            startNotificationScheduler();
+        } else {
+            stopNotificationScheduler();
+        }
+        return () => stopNotificationScheduler();
+    }, [notificationPrefs.enabled]);
 
     const accentHex = ACCENT_MAP[accentColor] || ACCENT_MAP.indigo;
 
@@ -50,6 +62,8 @@ export default function DashboardLayout() {
                 return <AnalyticsDashboard />;
             case "journal":
                 return <JournalPage />;
+            case "habits":
+                return <HabitTracker />;
             case "settings":
                 return <SettingsPage />;
             default:

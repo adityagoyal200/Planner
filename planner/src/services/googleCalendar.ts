@@ -45,8 +45,24 @@ export interface GoogleEventUpdate {
 }
 
 let tokenClient: GoogleTokenClient | null = null;
+
+// Restore Google token from localStorage if available and not expired
 let accessToken: string | null = null;
 let tokenExpiresAt = 0;
+try {
+    const cachedToken = localStorage.getItem("google_access_token");
+    const cachedExpiresAt = parseInt(localStorage.getItem("google_token_expires_at") || "0", 10);
+    if (cachedToken && cachedExpiresAt > Date.now()) {
+        accessToken = cachedToken;
+        tokenExpiresAt = cachedExpiresAt;
+    } else {
+        localStorage.removeItem("google_access_token");
+        localStorage.removeItem("google_token_expires_at");
+    }
+} catch (e) {
+    console.error("Failed to read google token from localStorage", e);
+}
+
 let refreshPromise: Promise<string | null> | null = null;
 let pendingResolve: ((token: string | null) => void) | null = null;
 const tokenListeners = new Set<(token: string | null) => void>();
@@ -58,12 +74,24 @@ function notifyTokenListeners(token: string | null) {
 function setAccessToken(token: string, expiresInSec = DEFAULT_EXPIRES_IN_SEC) {
     accessToken = token;
     tokenExpiresAt = Date.now() + expiresInSec * 1000 - EXPIRY_BUFFER_MS;
+    try {
+        localStorage.setItem("google_access_token", token);
+        localStorage.setItem("google_token_expires_at", tokenExpiresAt.toString());
+    } catch (e) {
+        console.error("Failed to save google token to localStorage", e);
+    }
     notifyTokenListeners(token);
 }
 
 export function invalidateGoogleToken() {
     accessToken = null;
     tokenExpiresAt = 0;
+    try {
+        localStorage.removeItem("google_access_token");
+        localStorage.removeItem("google_token_expires_at");
+    } catch (e) {
+        console.error("Failed to clear google token from localStorage", e);
+    }
 }
 
 export function isGoogleTokenValid(): boolean {

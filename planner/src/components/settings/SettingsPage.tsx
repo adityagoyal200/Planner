@@ -5,6 +5,7 @@ import { useState } from "react";
 import type { DayKey } from "../../store/useScheduleStore";
 import { toLocalISODate } from "../../utils/dateUtils";
 import { parseTimeInput } from "../../utils/timeUtils";
+import { requestNotificationPermission, getNotificationPermission, isNotificationSupported } from "../../services/notificationService";
 
 const ACCENT_COLORS = [
     { id: "indigo", color: "#6366f1", label: "Indigo" },
@@ -351,6 +352,120 @@ export default function SettingsPage() {
                             <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${compactMode ? 'translate-x-6' : 'translate-x-1'}`} />
                         </button>
                     </div>
+                </div>
+            </div>
+
+            {/* Notifications */}
+            <div className="glass-card rounded-2xl p-5 relative overflow-hidden">
+                <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-amber-500/20 to-transparent" />
+                <h2 className="text-sm font-bold text-zinc-300 mb-4">🔔 Notifications</h2>
+                <div className="space-y-4">
+                    {!isNotificationSupported() ? (
+                        <div className="text-xs text-zinc-500 p-3 rounded-xl bg-zinc-900/50 border border-zinc-800/50">
+                            Notifications are not supported in this browser.
+                        </div>
+                    ) : (
+                        <>
+                            {/* Master Toggle */}
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <div className="text-sm font-bold text-zinc-300">Enable Notifications</div>
+                                    <div className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest">
+                                        {getNotificationPermission() === "denied" ? "Blocked by browser" : "Block reminders, streak alerts & more"}
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={async () => {
+                                        const prefs = useScheduleStore.getState().notificationPrefs;
+                                        if (!prefs.enabled) {
+                                            const granted = await requestNotificationPermission();
+                                            if (granted) {
+                                                useScheduleStore.getState().updateNotificationPrefs({ enabled: true });
+                                            }
+                                        } else {
+                                            useScheduleStore.getState().updateNotificationPrefs({ enabled: false });
+                                        }
+                                    }}
+                                    disabled={getNotificationPermission() === "denied"}
+                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed ${
+                                        store.notificationPrefs.enabled ? 'bg-amber-500' : 'bg-zinc-700'
+                                    }`}
+                                >
+                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${store.notificationPrefs.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                                </button>
+                            </div>
+
+                            {store.notificationPrefs.enabled && (
+                                <div className="space-y-3 pt-2 border-t border-zinc-800/50">
+                                    {/* Block Reminders */}
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs font-bold text-zinc-400">Block start reminders</span>
+                                        <button
+                                            onClick={() => store.updateNotificationPrefs({ blockReminders: !store.notificationPrefs.blockReminders })}
+                                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors cursor-pointer ${store.notificationPrefs.blockReminders ? 'bg-indigo-500' : 'bg-zinc-700'}`}
+                                        >
+                                            <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${store.notificationPrefs.blockReminders ? 'translate-x-5' : 'translate-x-1'}`} />
+                                        </button>
+                                    </div>
+
+                                    {/* Reminder Minutes Before */}
+                                    {store.notificationPrefs.blockReminders && (
+                                        <div className="flex items-center justify-between pl-4">
+                                            <span className="text-xs text-zinc-500">Remind me before</span>
+                                            <div className="flex items-center gap-1">
+                                                {[3, 5, 10, 15].map(mins => (
+                                                    <button
+                                                        key={mins}
+                                                        onClick={() => store.updateNotificationPrefs({ reminderMinsBefore: mins })}
+                                                        className={`px-2 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
+                                                            store.notificationPrefs.reminderMinsBefore === mins
+                                                                ? 'bg-white text-black'
+                                                                : 'text-zinc-500 hover:text-zinc-300 bg-zinc-900'
+                                                        }`}
+                                                    >
+                                                        {mins}m
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Sleep Reminder */}
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs font-bold text-zinc-400">Sleep reminder (30 min before)</span>
+                                        <button
+                                            onClick={() => store.updateNotificationPrefs({ sleepReminder: !store.notificationPrefs.sleepReminder })}
+                                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors cursor-pointer ${store.notificationPrefs.sleepReminder ? 'bg-indigo-500' : 'bg-zinc-700'}`}
+                                        >
+                                            <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${store.notificationPrefs.sleepReminder ? 'translate-x-5' : 'translate-x-1'}`} />
+                                        </button>
+                                    </div>
+
+                                    {/* Streak Alert */}
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs font-bold text-zinc-400">Streak at-risk alert (8 PM)</span>
+                                        <button
+                                            onClick={() => store.updateNotificationPrefs({ streakAlert: !store.notificationPrefs.streakAlert })}
+                                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors cursor-pointer ${store.notificationPrefs.streakAlert ? 'bg-indigo-500' : 'bg-zinc-700'}`}
+                                        >
+                                            <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${store.notificationPrefs.streakAlert ? 'translate-x-5' : 'translate-x-1'}`} />
+                                        </button>
+                                    </div>
+
+                                    {/* Focus Timer Done */}
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs font-bold text-zinc-400">Focus timer completion</span>
+                                        <button
+                                            onClick={() => store.updateNotificationPrefs({ focusTimerDone: !store.notificationPrefs.focusTimerDone })}
+                                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors cursor-pointer ${store.notificationPrefs.focusTimerDone ? 'bg-indigo-500' : 'bg-zinc-700'}`}
+                                        >
+                                            <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${store.notificationPrefs.focusTimerDone ? 'translate-x-5' : 'translate-x-1'}`} />
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </>
+                    )}
                 </div>
             </div>
 
