@@ -18,10 +18,6 @@ export function computeSchedule(
     const scheduled: ScheduledBlock[] = [];
     const warnings: string[] = [];
 
-    const isWorkday = day.workStart > 0;
-    const commuteStart = isWorkday ? day.workStart - day.commuteMins : 0;
-
-
     let totalNapMins = 0;
 
     let onBlocksCount = 0;
@@ -83,66 +79,14 @@ export function computeSchedule(
             blockActualStart = dayDiff * 1440 + blockActualStart;
         }
 
-        if (block.type === "work" && isWorkday) {
-            if (t < commuteStart) {
-                scheduled.push({
-                    id: `gap-${t}`,
-                    label: `Free Buffer (${commuteStart - t}m)`,
-                    type: "free",
-                    start: t,
-                    end: commuteStart,
-                    dur: commuteStart - t,
-                    virtual: true,
-                });
-                t = commuteStart;
-            } else if (t > commuteStart) {
-                warnings.push("You are running late for work based on your commute and morning blocks!");
-            }
+        if (blockActualStart != null) t = blockActualStart;
 
-            scheduled.push({
-                id: `commute-to`,
-                label: "Commute To Work",
-                type: "travel",
-                start: t,
-                end: t + day.commuteMins,
-                dur: day.commuteMins,
-                virtual: true,
-            });
-            t += day.commuteMins;
-
-            if (blockActualStart != null) {
-                t = blockActualStart;
-            } else {
-                t = day.workStart;
-            }
-
-            scheduled.push({
-                ...block,
-                start: t,
-                end: t + block.dur,
-            });
-            t += block.dur;
-
-            scheduled.push({
-                id: `commute-home`,
-                label: "Commute Home",
-                type: "travel",
-                start: t,
-                end: t + day.commuteMins,
-                dur: day.commuteMins,
-                virtual: true,
-            });
-            t += day.commuteMins;
-        } else {
-            if (blockActualStart != null) t = blockActualStart;
-
-            scheduled.push({
-                ...block,
-                start: t,
-                end: t + block.dur,
-            });
-            t += block.dur;
-        }
+        scheduled.push({
+            ...block,
+            start: t,
+            end: t + block.dur,
+        });
+        t += block.dur;
     }
 
     // Overlay Google events:

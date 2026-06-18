@@ -18,6 +18,14 @@ import {
     createSaturday,
     createSunday,
 } from "../data/defaultWeek";
+import {
+    applyCommuteMinsToDay,
+    applyWorkStartToDay,
+    isCommuteBlockId,
+    migrateWeekCommuteBlocks,
+    mirrorCommuteDuration,
+    syncDayMetaFromBlocks,
+} from "../utils/commuteBlocks";
 
 // Generic SaaS defaults
 const DEFAULT_CATEGORIES: BlockCategory[] = [
@@ -244,7 +252,7 @@ export const useScheduleStore = create<ScheduleStore>()(
             compactMode: false,
             durationDisplayUnit: "minutes",
 
-            week: {
+            week: migrateWeekCommuteBlocks({
                 mon: createMonday(),
                 tue: createTuesday(),
                 wed: createWednesday(),
@@ -252,7 +260,7 @@ export const useScheduleStore = create<ScheduleStore>()(
                 fri: createFriday(),
                 sat: createSaturday(),
                 sun: createSunday(),
-            },
+            }),
 
             setCurrentTab: (tab) => set({ currentTab: tab }),
             setSelectedDay: (d) => set({ selectedDay: d }),
@@ -269,7 +277,7 @@ export const useScheduleStore = create<ScheduleStore>()(
                 set((state) => ({
                     week: {
                         ...state.week,
-                        [day]: { ...state.week[day], commuteMins: mins },
+                        [day]: applyCommuteMinsToDay(state.week[day], mins),
                     },
                 })),
 
@@ -277,7 +285,7 @@ export const useScheduleStore = create<ScheduleStore>()(
                 set((state) => ({
                     week: {
                         ...state.week,
-                        [day]: { ...state.week[day], workStart },
+                        [day]: applyWorkStartToDay(state.week[day], workStart),
                     },
                 })),
 
@@ -314,17 +322,24 @@ export const useScheduleStore = create<ScheduleStore>()(
                 })),
 
             updateBlock: (day, blockId, updates) =>
-                set((state) => ({
-                    week: {
-                        ...state.week,
-                        [day]: {
-                            ...state.week[day],
-                            blocks: state.week[day].blocks.map((b) =>
-                                b.id === blockId ? { ...b, ...updates } : b
-                            ),
+                set((state) => {
+                    let blocks = state.week[day].blocks.map((b) =>
+                        b.id === blockId ? { ...b, ...updates } : b
+                    );
+                    if (updates.dur != null && isCommuteBlockId(blockId)) {
+                        blocks = mirrorCommuteDuration(blocks, blockId, updates.dur);
+                    }
+                    const dayData = syncDayMetaFromBlocks({
+                        ...state.week[day],
+                        blocks,
+                    });
+                    return {
+                        week: {
+                            ...state.week,
+                            [day]: dayData,
                         },
-                    },
-                })),
+                    };
+                }),
 
             moveBlock: (day, blockId, direction) =>
                 set((state) => {
@@ -412,15 +427,18 @@ export const useScheduleStore = create<ScheduleStore>()(
                 }),
 
             removeBlock: (day, blockId) =>
-                set((state) => ({
-                    week: {
-                        ...state.week,
-                        [day]: {
-                            ...state.week[day],
-                            blocks: state.week[day].blocks.filter((b) => b.id !== blockId),
+                set((state) => {
+                    const dayData = syncDayMetaFromBlocks({
+                        ...state.week[day],
+                        blocks: state.week[day].blocks.filter((b) => b.id !== blockId),
+                    });
+                    return {
+                        week: {
+                            ...state.week,
+                            [day]: dayData,
                         },
-                    },
-                })),
+                    };
+                }),
 
             updateQuickNotes: (notes) => set({ quickNotes: notes }),
 
@@ -796,7 +814,7 @@ export const useScheduleStore = create<ScheduleStore>()(
                 accentColor: "indigo",
                 compactMode: false,
             durationDisplayUnit: "minutes",
-                week: {
+                week: migrateWeekCommuteBlocks({
                     mon: createMonday(),
                     tue: createTuesday(),
                     wed: createWednesday(),
@@ -804,7 +822,7 @@ export const useScheduleStore = create<ScheduleStore>()(
                     fri: createFriday(),
                     sat: createSaturday(),
                     sun: createSunday(),
-                },
+                }),
             }),
         }),
         {
@@ -822,6 +840,12 @@ export const useScheduleStore = create<ScheduleStore>()(
                 }
                 state.googleToken = null;
                 state.calendarEvents = [];
+                state.week = migrateWeekCommuteBlocks(state.week);
+                const migratedWeeks: Record<string, Record<DayKey, DayData>> = {};
+                for (const [key, weekData] of Object.entries(state.weeks || {})) {
+                    migratedWeeks[key] = migrateWeekCommuteBlocks(weekData);
+                }
+                state.weeks = migratedWeeks;
             },
         }
     )
@@ -904,8 +928,10 @@ export async function hydrateFromCloud(userId: string) {
     };
 
     useScheduleStore.setState({
-        week: hydratedWeek,
-        weeks: cloudWeeks,
+        week: migrateWeekCommuteBlocks(hydratedWeek),
+        weeks: Object.fromEntries(
+            Object.entries(cloudWeeks).map(([k, w]) => [k, migrateWeekCommuteBlocks(w as Record<DayKey, DayData>)])
+        ),
         currentWeekKey: storedWeekKey,
         browsingWeekKey: null,
         newWeekArchived: null,

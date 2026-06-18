@@ -40,11 +40,15 @@ describe("computeSchedule", () => {
         expect(result.carryOverForNextDay[0].end).toBeGreaterThan(1440);
     });
 
-    it("uses the same commute duration for to-work and home legs", () => {
+    it("schedules commute as regular blocks in timeline order", () => {
         const result = computeSchedule(day({
             workStart: 9 * 60,
             commuteMins: 15,
-            blocks: [{ id: "work", type: "work", label: "Work", dur: 8 * 60, on: true }],
+            blocks: [
+                { id: "commute-to", type: "travel", label: "Commute To Work", dur: 15, on: true },
+                { id: "work", type: "work", label: "Work", dur: 8 * 60, on: true, actualStart: 9 * 60 },
+                { id: "commute-home", type: "travel", label: "Commute Home", dur: 15, on: true },
+            ],
         }), [], { referenceDate: "2026-06-17" });
 
         const toWork = result.scheduled.find((b) => b.id === "commute-to");
@@ -52,7 +56,9 @@ describe("computeSchedule", () => {
 
         expect(toWork?.dur).toBe(15);
         expect(home?.dur).toBe(15);
-        expect(toWork?.start).toBe(9 * 60 - 15);
-        expect(toWork?.end).toBe(9 * 60);
+        expect(toWork?.virtual).toBeFalsy();
+        expect(home?.virtual).toBeFalsy();
+        expect(toWork?.start).toBe(420);
+        expect(toWork?.end).toBe(435);
     });
 });

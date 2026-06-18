@@ -13,7 +13,7 @@ import { formatBlockDuration, formatBlockDurationLabel, getDurationSuffix, getEf
 import { nanoid } from "nanoid";
 
 export default function Timeline() {
-    const { week, selectedDay, updateBlock, removeBlock, reorderBlocks, insertBlock, setFocusBlock, focusBlockId, calendarEvents, categories, browsingWeekKey, currentWeekKey, durationDisplayUnit, updateCommute, updateWorkStart } = useScheduleStore();
+    const { week, selectedDay, updateBlock, removeBlock, reorderBlocks, insertBlock, setFocusBlock, focusBlockId, calendarEvents, categories, browsingWeekKey, currentWeekKey, durationDisplayUnit } = useScheduleStore();
     const isReadOnly = !!browsingWeekKey;
     const day = week[selectedDay];
     const [showPicker, setShowPicker] = useState(false);
@@ -188,13 +188,12 @@ export default function Timeline() {
                                             </div>
                                         );
 
-                                        const isEditableVirtual = isVirtual && !isGoogle && !isGap && !block.carryOver;
-                                        const canEditTime = !isVirtual || isGoogle || isEditableVirtual;
-                                        const canEditDur = !isVirtual || isGoogle || isEditableVirtual;
+                                        const canEditTime = !isVirtual || isGoogle;
+                                        const canEditDur = !isVirtual || isGoogle;
                                         const canEditLabel = !isVirtual;
 
                                         const renderBlockContent = (isDragging = false) => (
-                                            <div className={`timeline-block-row flex items-stretch gap-3 sm:gap-4 md:gap-6 relative ${isVirtual && !isEditableVirtual ? 'opacity-50' : isEditableVirtual ? 'opacity-70' : (block.on === false ? 'opacity-40' : '')} ${isDragging ? 'shadow-2xl scale-105 z-50' : ''}`}>
+                                            <div className={`timeline-block-row flex items-stretch gap-3 sm:gap-4 md:gap-6 relative ${isVirtual ? 'opacity-50' : (block.on === false ? 'opacity-40' : '')} ${isDragging ? 'shadow-2xl scale-105 z-50' : ''}`}>
                                                 {renderNowLine}
 
                                                 {/* Left Timeline Time + Date */}
@@ -225,9 +224,6 @@ export default function Timeline() {
                                                                             if (originalEventId) {
                                                                                 useScheduleStore.getState().syncCalendarEventUpdate(originalEventId, { startMins: absoluteMins, endMins: absoluteMins + block.dur });
                                                                             }
-                                                                        } else if (isEditableVirtual && block.id === "commute-to") {
-                                                                            const commuteMins = week[selectedDay]?.commuteMins ?? 0;
-                                                                            updateWorkStart(selectedDay, minsOfDay + commuteMins);
                                                                         } else if (!isVirtual) {
                                                                             updateBlock(selectedDay, block.id, { actualStart: minsOfDay, actualStartDate: blockDateStr });
                                                                         }
@@ -235,7 +231,7 @@ export default function Timeline() {
                                                                         e.target.value = minsToTimeStr(block.start);
                                                                     }
                                                                 }}
-                                                                className={`w-full bg-transparent text-right border-none p-0 focus:outline-none focus:ring-0 text-[13px] tabular-nums ${isActive ? "text-white" : isEditableVirtual ? "text-zinc-600" : "text-zinc-500"} hover:text-white cursor-pointer transition-all`}
+                                                                className={`w-full bg-transparent text-right border-none p-0 focus:outline-none focus:ring-0 text-[13px] tabular-nums ${isActive ? "text-white" : "text-zinc-500"} hover:text-white cursor-pointer transition-all`}
                                                                 title="Edit start time (24h, e.g. 21:00)"
                                                             />
                                                             <div className="text-[10px] text-zinc-600 mt-0.5 tabular-nums text-right w-full hidden sm:block">
@@ -252,10 +248,9 @@ export default function Timeline() {
                                                                     return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
                                                                 })()}
                                                             </div>
-                                                            {!isEditableVirtual && (
-                                                                <input
-                                                                    type="date"
-                                                                    value={block.actualStartDate || refDate}
+                                                            <input
+                                                                type="date"
+                                                                value={block.actualStartDate || refDate}
                                                                     onChange={(e) => {
                                                                         const newDate = e.target.value;
                                                                         if (!newDate) return;
@@ -274,7 +269,6 @@ export default function Timeline() {
                                                                     className="text-[10px] bg-transparent border-none p-0 text-right focus:ring-0 text-zinc-700 hover:text-white cursor-pointer mt-0.5 w-full opacity-0 group-hover/time:opacity-100 transition-opacity [&::-webkit-calendar-picker-indicator]:invert-[0.4] [&::-webkit-calendar-picker-indicator]:opacity-50 hover:[&::-webkit-calendar-picker-indicator]:opacity-100"
                                                                     title="Change date"
                                                                 />
-                                                            )}
                                                         </>
                                                     ) : (
                                                         <div className={isActive ? "text-white flex flex-col items-end" : "flex flex-col items-end"}>
@@ -297,8 +291,8 @@ export default function Timeline() {
                                                 {/* Block Card */}
                                                 <div 
                                                     onClick={() => { if (!isVirtual || isGoogle) setFocusBlock(focusBlockId === block.id ? null : block.id); }}
-                                                    className={`flex-1 rounded-2xl border p-3 sm:p-4 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] group relative overflow-hidden backdrop-blur-2xl ${(!isVirtual || isGoogle || isEditableVirtual) ? 'cursor-pointer' : ''}
-                                                        ${isVirtual && !isGoogle ? `border-zinc-900/50 ${isEditableVirtual ? 'bg-zinc-900/20 hover:border-zinc-700/50' : 'bg-zinc-900/10'}` : ''}
+                                                    className={`flex-1 rounded-2xl border p-3 sm:p-4 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] group relative overflow-hidden backdrop-blur-2xl ${(!isVirtual || isGoogle) ? 'cursor-pointer' : ''}
+                                                        ${isVirtual && !isGoogle ? 'border-zinc-900/50 bg-zinc-900/10' : ''}
                                                         ${!isVirtual ? 'glass-card hover:border-white/20' : ''}
                                                         ${isGoogle ? 'border-zinc-800/80 shadow-lg' : ''}
                                                         ${isActive && !isVirtual ? 'shadow-[0_0_30px_rgba(255,255,255,0.05)] border-zinc-500 scale-[1.01]' : 'border-white/5'}
@@ -364,7 +358,7 @@ export default function Timeline() {
                                                                     <div className="w-6 h-6 rounded-full border-2 border-zinc-700 mr-1 shrink-0" />
                                                                 )}
 
-                                                                <div className={`text-2xl sm:text-3xl drop-shadow-md shrink-0 pointer-events-none ${isEditableVirtual ? 'text-xl opacity-70' : ''}`}>
+                                                                <div className="text-2xl sm:text-3xl drop-shadow-md shrink-0 pointer-events-none">
                                                                     {isGoogle ? (
                                                                         <div className="w-8 h-8 rounded bg-zinc-900 flex items-center justify-center border" style={{ borderColor: `${block.color}50`, color: block.color }}>
                                                                             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -391,7 +385,7 @@ export default function Timeline() {
                                                                             className={`w-full min-w-0 bg-transparent border-none px-0 py-1 font-bold text-lg sm:text-xl tracking-tight focus:outline-none focus:ring-0 ${block.on === false ? 'text-zinc-600 line-through' : block.completed ? 'text-emerald-400 line-through opacity-70' : 'text-zinc-100 group-hover:text-white transition-colors'}`}
                                                                         />
                                                                     ) : (
-                                                                        <div className={`font-bold tracking-tight px-0 py-1 ${isEditableVirtual ? 'text-lg text-zinc-500' : block.completed ? 'text-emerald-400 line-through opacity-70 text-xl' : 'text-xl text-zinc-300'}`} style={isGoogle ? { color: block.color } : {}}>
+                                                                        <div className={`font-bold tracking-tight px-0 py-1 ${block.completed ? 'text-emerald-400 line-through opacity-70 text-xl' : 'text-xl text-zinc-300'}`} style={isGoogle ? { color: block.color } : {}}>
                                                                             {block.label}
                                                                         </div>
                                                                     )}
@@ -420,8 +414,6 @@ export default function Timeline() {
                                                                                     if (originalEventId) {
                                                                                         useScheduleStore.getState().syncCalendarEventUpdate(originalEventId, { endMins: block.start + val });
                                                                                     }
-                                                                                } else if (isEditableVirtual && block.id.startsWith("commute")) {
-                                                                                    updateCommute(selectedDay, val);
                                                                                 } else if (!isVirtual) {
                                                                                     updateBlock(selectedDay, block.id, { dur: val });
                                                                                 }
@@ -429,10 +421,10 @@ export default function Timeline() {
                                                                                 e.target.value = formatBlockDuration(block.dur, durationDisplayUnit);
                                                                             }
                                                                         }}
-                                                                        className={`w-16 bg-transparent border-none p-0 text-right font-black tracking-tighter focus:outline-none focus:ring-0 ${isEditableVirtual ? 'text-xl text-zinc-600 hover:text-zinc-400' : block.on === false ? 'text-zinc-700 text-2xl' : 'text-zinc-300 hover:text-white text-2xl'} border-b border-transparent hover:border-dashed hover:border-zinc-500 transition-all cursor-pointer`}
+                                                                        className={`w-16 bg-transparent border-none p-0 text-right font-black tracking-tighter focus:outline-none focus:ring-0 ${block.on === false ? 'text-zinc-700 text-2xl' : 'text-zinc-300 hover:text-white text-2xl'} border-b border-transparent hover:border-dashed hover:border-zinc-500 transition-all cursor-pointer`}
                                                                         title="Edit duration"
                                                                     />
-                                                                    <span className={`text-sm font-semibold ml-1 ${isEditableVirtual ? 'text-zinc-700' : 'text-zinc-600'}`}>{getDurationSuffix(block.dur, durationDisplayUnit)}</span>
+                                                                    <span className="text-sm font-semibold ml-1 text-zinc-600">{getDurationSuffix(block.dur, durationDisplayUnit)}</span>
                                                                 </div>
                                                             ) : (
                                                                 <div className="text-2xl font-black tracking-tighter text-zinc-600">
@@ -441,38 +433,28 @@ export default function Timeline() {
                                                                 </div>
                                                             )}
 
-                                                            {(!isVirtual || isEditableVirtual) && !isReadOnly && (
+                                                            {!isVirtual && !isReadOnly && (
                                                                 <div className="flex items-center gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                                                                    {!isEditableVirtual && (
-                                                                        <button 
-                                                                            onClick={() => updateBlock(selectedDay, block.id, { on: !block.on })}
-                                                                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none cursor-pointer ${block.on ? 'bg-zinc-300' : 'bg-zinc-800'}`}
-                                                                        >
-                                                                            <span className={`inline-block h-4 w-4 transform rounded-full bg-black transition-transform ${block.on ? 'translate-x-6' : 'translate-x-1'}`} />
-                                                                        </button>
-                                                                    )}
+                                                                    <button 
+                                                                        onClick={() => updateBlock(selectedDay, block.id, { on: !block.on })}
+                                                                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none cursor-pointer ${block.on ? 'bg-zinc-300' : 'bg-zinc-800'}`}
+                                                                    >
+                                                                        <span className={`inline-block h-4 w-4 transform rounded-full bg-black transition-transform ${block.on ? 'translate-x-6' : 'translate-x-1'}`} />
+                                                                    </button>
 
-                                                                    {(!block.locked || isEditableVirtual) && (
-                                                                        <button onClick={() => {
-                                                                            if (isEditableVirtual && block.id.startsWith("commute")) {
-                                                                                useScheduleStore.getState().updateCommute(selectedDay, 0);
-                                                                            } else if (!isVirtual) {
-                                                                                removeBlock(selectedDay, block.id);
-                                                                            }
-                                                                        }} className="p-2 text-zinc-500 hover:text-rose-500 transition ml-1 cursor-pointer">
+                                                                    {!block.locked && (
+                                                                        <button onClick={() => removeBlock(selectedDay, block.id)} className="p-2 text-zinc-500 hover:text-rose-500 transition ml-1 cursor-pointer">
                                                                             <Trash2 className="w-4 h-4" />
                                                                         </button>
                                                                     )}
                                                                     
-                                                                    {!isEditableVirtual && (
-                                                                        <button 
-                                                                            onClick={() => setFocusBlock(block.id)}
-                                                                            className={`p-2 transition ml-1 cursor-pointer rounded-full ${focusBlockId === block.id ? 'bg-rose-500/20 text-rose-500' : 'text-zinc-500 hover:text-white hover:bg-zinc-800'}`}
-                                                                            title="Focus on this block"
-                                                                        >
-                                                                            <Clock className="w-4 h-4" />
-                                                                        </button>
-                                                                    )}
+                                                                    <button 
+                                                                        onClick={() => setFocusBlock(block.id)}
+                                                                        className={`p-2 transition ml-1 cursor-pointer rounded-full ${focusBlockId === block.id ? 'bg-rose-500/20 text-rose-500' : 'text-zinc-500 hover:text-white hover:bg-zinc-800'}`}
+                                                                        title="Focus on this block"
+                                                                    >
+                                                                        <Clock className="w-4 h-4" />
+                                                                    </button>
                                                                 </div>
                                                             )}
                                                         </div>
@@ -523,7 +505,7 @@ export default function Timeline() {
                                                     >
                                                         <div 
                                                             {...provided.dragHandleProps} 
-                                                            className={`absolute -left-6 top-1/2 -translate-y-1/2 p-2 text-zinc-600 hover:text-white transition-colors cursor-grab active:cursor-grabbing ${snapshot.isDragging ? 'opacity-0' : 'opacity-0 group-hover:opacity-100'}`}
+                                                            className={`absolute -left-6 top-1/2 -translate-y-1/2 p-2 text-zinc-600 hover:text-white transition-colors cursor-grab active:cursor-grabbing ${snapshot.isDragging ? 'opacity-0' : 'opacity-100 sm:opacity-0 sm:group-hover:opacity-100'}`}
                                                         >
                                                             <GripVertical className="w-4 h-4" />
                                                         </div>

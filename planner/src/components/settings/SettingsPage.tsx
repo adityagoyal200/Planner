@@ -175,7 +175,7 @@ export default function SettingsPage() {
                             }}
                             className="mt-1 w-full rounded-xl border border-zinc-800 bg-[#050505] p-3 text-white focus:border-zinc-600 focus:outline-none transition shadow-inner tabular-nums disabled:opacity-40"
                         />
-                        <p className="text-[10px] text-zinc-600 mt-1">Commute to work ends when work starts.</p>
+                        <p className="text-[10px] text-zinc-600 mt-1">Anchors the work block start time on the timeline.</p>
                     </div>
                     <div>
                         <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Commute</label>
