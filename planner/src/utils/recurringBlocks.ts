@@ -44,6 +44,7 @@ export function applyRecurrenceToWeek(
     const source = week[sourceDay].blocks.find((b) => b.id === blockId);
     if (!source) return week;
 
+    const sourceIdx = week[sourceDay].blocks.findIndex((b) => b.id === blockId);
     const groupId = source.recurrenceGroupId || source.id;
     const canonical: Block = {
         ...source,
@@ -52,20 +53,41 @@ export function applyRecurrenceToWeek(
     };
 
     let draft = { ...week } as Record<DayKey, DayData>;
+    
     for (const day of ALL_DAYS) {
-        draft[day] = {
-            ...draft[day],
-            blocks: draft[day].blocks.filter((b) => b.recurrenceGroupId !== groupId && b.id !== blockId),
-        };
-    }
-
-    const targets = targetDaysForRecurrence(recurrence, sourceDay);
-    for (const day of targets) {
-        const copy = day === sourceDay ? canonical : cloneBlockForDay(canonical, groupId);
-        draft[day] = {
-            ...draft[day],
-            blocks: [...draft[day].blocks, copy],
-        };
+        if (day === sourceDay) {
+            // Keep in-place at the exact same index to prevent schedule disruptions
+            const newBlocks = [...draft[day].blocks];
+            newBlocks[sourceIdx] = canonical;
+            draft[day] = {
+                ...draft[day],
+                blocks: newBlocks,
+            };
+        } else {
+            // Filter out old copies of this recurrence group
+            const filteredBlocks = draft[day].blocks.filter((b) => b.recurrenceGroupId !== groupId && b.id !== blockId);
+            
+            // Check if day is a target for this recurrence
+            const targets = targetDaysForRecurrence(recurrence, sourceDay);
+            if (targets.includes(day)) {
+                const copy = cloneBlockForDay(canonical, groupId);
+                
+                // Insert copy at the same relative position (sourceIdx)
+                const newBlocks = [...filteredBlocks];
+                const insertPos = Math.min(sourceIdx, newBlocks.length);
+                newBlocks.splice(insertPos, 0, copy);
+                
+                draft[day] = {
+                    ...draft[day],
+                    blocks: newBlocks,
+                };
+            } else {
+                draft[day] = {
+                    ...draft[day],
+                    blocks: filteredBlocks,
+                };
+            }
+        }
     }
 
     return draft;
