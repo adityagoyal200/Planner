@@ -6,9 +6,10 @@ import { useScheduleStore } from "../../store/useScheduleStore";
 import { formatTime } from "../../utils/formatTime";
 import { addDaysToISODate, addWeeksToMondayKey, getDateForDayKeyInWeek, getDaysDiff, parseISODate } from "../../utils/dateUtils";
 import BlockTypePicker from "./BlockTypePicker";
-import type { BlockType, BlockRecurrence } from "../../types/block";
+import type { Block, BlockType, BlockRecurrence } from "../../types/block";
 import { minsToTimeStr, parseTimeInput } from "../../utils/timeUtils";
 import { formatBlockDuration, formatBlockDurationLabel, getDurationSuffix, getEffectiveDurationUnit, parseBlockDurationInput } from "../../utils/durationUtils";
+import MicroReview from "./MicroReview";
 
 import { nanoid } from "nanoid";
 
@@ -586,6 +587,10 @@ export default function Timeline() {
                                                             </div>
                                                         );
                                                     })()}
+
+                                                    {!isVirtual && (
+                                                        <MicroReview day={selectedDay} block={block as Block} />
+                                                    )}
                                                 </div>
                                             </div>
                                         );

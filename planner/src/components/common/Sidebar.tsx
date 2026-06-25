@@ -5,6 +5,9 @@ import FocusTimer from "./FocusTimer";
 import BlockInspector from "./BlockInspector";
 import { getQuoteOfTheDay } from "../../data/quotes";
 import { getLevelInfo } from "../../engine/xpEngine";
+import { useSubscriptionStore } from "../../store/useSubscriptionStore";
+import TrialBanner from "../paywall/TrialBanner";
+import LifeScoreGauge from "./LifeScoreGauge";
 
 const days = [
     { id: "mon", label: "M" },
@@ -23,6 +26,7 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
     const { dayScore } = day ? computeSchedule(day) : { dayScore: 0 };
     const quote = getQuoteOfTheDay();
     const levelInfo = getLevelInfo(xp);
+    const canAccessGamification = useSubscriptionStore((s) => s.canAccess("gamification"));
 
     return (
         <div className="w-full h-full border-r border-white/5 bg-black/40 backdrop-blur-xl p-4 sm:p-5 flex flex-col relative z-10 overflow-y-auto overflow-x-hidden">
@@ -44,6 +48,8 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
                 )}
             </div>
 
+            <TrialBanner />
+
             {/* Day Picker Compact */}
             <div className="flex items-center justify-between glass-card p-1.5 rounded-2xl mb-8">
                 {days.map((d) => (
@@ -63,7 +69,7 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
             </div>
 
             {/* Level & XP Progression */}
-            {gamificationEnabled && (
+            {gamificationEnabled && canAccessGamification && (
                 <div className="glass-card rounded-2xl p-4 mb-8 relative overflow-hidden group">
                     <div className="absolute -right-8 -top-8 h-20 w-20 rounded-full bg-indigo-500/10 blur-2xl group-hover:bg-indigo-500/20 transition-all duration-500" />
                     <div className="relative z-10">
@@ -103,6 +109,11 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
                         <span className="text-xl">🔥</span>
                     </div>
                 </div>
+            </div>
+
+            {/* Life Score Gauge */}
+            <div className="mb-8">
+                <LifeScoreGauge />
             </div>
 
             {/* Focus Timer */}

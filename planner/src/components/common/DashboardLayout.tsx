@@ -18,6 +18,9 @@ import StreakFreezeBanner from "./StreakFreezeBanner";
 import OnboardingWizard from "./OnboardingWizard";
 import { startNotificationScheduler, stopNotificationScheduler } from "../../services/notificationService";
 import { startWeekRolloverScheduler } from "../../services/weekRolloverService";
+import { useSubscriptionStore } from "../../store/useSubscriptionStore";
+import UpgradeModal from "../paywall/UpgradeModal";
+import PremiumGate from "../paywall/PremiumGate";
 
 const ACCENT_MAP: Record<string, string> = {
     indigo: "#6366f1",
@@ -31,6 +34,15 @@ const ACCENT_MAP: Record<string, string> = {
 export default function DashboardLayout() {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const { currentTab, accentColor, compactMode, notificationPrefs } = useScheduleStore();
+
+    const startTrial = useSubscriptionStore((s) => s.startTrial);
+    const trialStartDate = useSubscriptionStore((s) => s.trialStartDate);
+
+    useEffect(() => {
+        if (!trialStartDate) {
+            startTrial();
+        }
+    }, [trialStartDate, startTrial]);
 
     useGoogleCalendarSession();
 
@@ -64,12 +76,24 @@ export default function DashboardLayout() {
                         </div>
                     </div>
                 );
-            case "analytics":
-                return <AnalyticsDashboard />;
+                        case "analytics":
+                return (
+                    <PremiumGate feature="analytics" title="Advanced Analytics" description="Unlock sleep trends, focus logs, category breakdowns, heatmaps, time budgets, time debt ledgers, and personal records.">
+                        <AnalyticsDashboard />
+                    </PremiumGate>
+                );
             case "journal":
-                return <JournalPage />;
+                return (
+                    <PremiumGate feature="journal" title="Reflection Journal" description="Log daily mood and energy, review well-being charts, and complete guided journaling questions.">
+                        <JournalPage />
+                    </PremiumGate>
+                );
             case "habits":
-                return <HabitTracker />;
+                return (
+                    <PremiumGate feature="habits" title="Habit Tracker" description="Build daily habit streaks, customize schedules, and earn bonus XP with consistent habit completion.">
+                        <HabitTracker />
+                    </PremiumGate>
+                );
             case "settings":
                 return <SettingsPage />;
             default:
@@ -107,6 +131,7 @@ export default function DashboardLayout() {
             </div>
             <Toaster position="top-center" containerClassName="safe-pt" toastOptions={{ className: "max-w-[calc(100vw-2rem)]" }} />
             <LevelUpModal />
+            <UpgradeModal />
             <OnboardingWizard />
         </div>
     );

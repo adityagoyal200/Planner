@@ -153,7 +153,7 @@ export default function SettingsPage() {
                                     e.target.value = minsToTime(day.wakeTime);
                                 }
                             }}
-                            className="mt-1 w-full rounded-xl border border-zinc-800 bg-[#050505] p-3 text-white focus:border-zinc-600 focus:outline-none transition shadow-inner tabular-nums"
+                            className="mt-1 w-full rounded-xl border border-zinc-800 bg-[#050505] p-3 text-white focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/30 focus:outline-none transition shadow-inner tabular-nums"
                         />
                     </div>
                     <div>
@@ -174,7 +174,7 @@ export default function SettingsPage() {
                                     e.target.value = day.workStart > 0 ? minsToTime(day.workStart) : "";
                                 }
                             }}
-                            className="mt-1 w-full rounded-xl border border-zinc-800 bg-[#050505] p-3 text-white focus:border-zinc-600 focus:outline-none transition shadow-inner tabular-nums disabled:opacity-40"
+                            className="mt-1 w-full rounded-xl border border-zinc-800 bg-[#050505] p-3 text-white focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/30 focus:outline-none transition shadow-inner tabular-nums disabled:opacity-40"
                         />
                         <p className="text-[10px] text-zinc-600 mt-1">Anchors the work block start time on the timeline.</p>
                     </div>
@@ -183,7 +183,7 @@ export default function SettingsPage() {
                         <select
                             value={day.commuteMins}
                             onChange={(e) => updateCommute(selectedDay, Number(e.target.value))}
-                            className="mt-1 w-full rounded-xl border border-zinc-800 bg-[#050505] p-3 text-white focus:border-zinc-600 focus:outline-none transition shadow-inner"
+                            className="mt-1 w-full rounded-xl border border-zinc-800 bg-[#050505] p-3 text-white focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/30 focus:outline-none transition shadow-inner cursor-pointer"
                         >
                             <option value={0}>None (WFH)</option>
                             <option value={15}>15 mins</option>
@@ -201,7 +201,7 @@ export default function SettingsPage() {
                                     week: { ...state.week, [selectedDay]: { ...state.week[selectedDay], sleepTarget: Number(e.target.value) }}
                                 }));
                             }}
-                            className="mt-1 w-full rounded-xl border border-zinc-800 bg-[#050505] p-3 text-white focus:border-zinc-600 focus:outline-none transition shadow-inner"
+                            className="mt-1 w-full rounded-xl border border-zinc-800 bg-[#050505] p-3 text-white focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/30 focus:outline-none transition shadow-inner cursor-pointer"
                         >
                             {[5, 5.5, 6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10].map(h => (
                                 <option key={h} value={h * 60}>{h} hours</option>
@@ -243,28 +243,28 @@ export default function SettingsPage() {
                         <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Work (min)</label>
                         <input type="number" value={pomodoroWork} min={5} max={90}
                             onChange={(e) => updateSettings({ pomodoroWork: Number(e.target.value) })}
-                            className="mt-1 w-full rounded-xl border border-zinc-800 bg-[#050505] p-3 text-white focus:border-zinc-600 focus:outline-none transition shadow-inner tabular-nums"
+                            className="mt-1 w-full rounded-xl border border-zinc-800 bg-[#050505] p-3 text-white focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/30 focus:outline-none transition shadow-inner tabular-nums"
                         />
                     </div>
                     <div>
                         <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Break (min)</label>
                         <input type="number" value={pomodoroBreak} min={1} max={30}
                             onChange={(e) => updateSettings({ pomodoroBreak: Number(e.target.value) })}
-                            className="mt-1 w-full rounded-xl border border-zinc-800 bg-[#050505] p-3 text-white focus:border-zinc-600 focus:outline-none transition shadow-inner tabular-nums"
+                            className="mt-1 w-full rounded-xl border border-zinc-800 bg-[#050505] p-3 text-white focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/30 focus:outline-none transition shadow-inner tabular-nums"
                         />
                     </div>
                     <div>
                         <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Long Break (min)</label>
                         <input type="number" value={pomodoroLongBreak} min={5} max={60}
                             onChange={(e) => updateSettings({ pomodoroLongBreak: Number(e.target.value) })}
-                            className="mt-1 w-full rounded-xl border border-zinc-800 bg-[#050505] p-3 text-white focus:border-zinc-600 focus:outline-none transition shadow-inner tabular-nums"
+                            className="mt-1 w-full rounded-xl border border-zinc-800 bg-[#050505] p-3 text-white focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/30 focus:outline-none transition shadow-inner tabular-nums"
                         />
                     </div>
                     <div>
                         <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Sessions</label>
                         <input type="number" value={pomodoroSessions} min={1} max={10}
                             onChange={(e) => updateSettings({ pomodoroSessions: Number(e.target.value) })}
-                            className="mt-1 w-full rounded-xl border border-zinc-800 bg-[#050505] p-3 text-white focus:border-zinc-600 focus:outline-none transition shadow-inner tabular-nums"
+                            className="mt-1 w-full rounded-xl border border-zinc-800 bg-[#050505] p-3 text-white focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/30 focus:outline-none transition shadow-inner tabular-nums"
                         />
                     </div>
                 </div>

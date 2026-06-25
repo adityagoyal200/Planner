@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useAuthStore } from "../../store/useAuthStore";
 import { setCloudUserId, useScheduleStore } from "../../store/useScheduleStore";
 import type { AppTab } from "../../store/useScheduleStore";
+import UpgradeBadge from "../paywall/UpgradeBadge";
 
 const TABS: { id: AppTab; label: string; icon: string }[] = [
     { id: "schedule", label: "Schedule", icon: "📋" },
@@ -120,6 +121,9 @@ export default function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
                         >
                             <span className="text-sm">{tab.icon}</span>
                             <span className="hidden sm:inline">{tab.label}</span>
+                            {(tab.id === "analytics" || tab.id === "journal" || tab.id === "habits") && (
+                                <UpgradeBadge feature={tab.id} />
+                            )}
                         </button>
                     ))}
                 </nav>

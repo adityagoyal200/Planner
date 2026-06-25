@@ -58,13 +58,40 @@ export default function LoginScreen() {
                         </p>
                     </div>
 
-                    <div className="flex justify-center">
+                    <div className="flex flex-col gap-3 justify-center">
                         <button
                             onClick={signInWithGoogle}
                             disabled={isLoading}
-                            className="w-full rounded-xl bg-white text-black px-4 py-3 font-black shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:shadow-[0_0_30px_rgba(255,255,255,0.2)] transition-all duration-300 disabled:opacity-50"
+                            className="w-full rounded-xl bg-white text-black px-4 py-3 font-black shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:shadow-[0_0_30px_rgba(255,255,255,0.2)] transition-all duration-300 disabled:opacity-50 cursor-pointer"
                         >
                             {isLoading ? "Opening Google..." : "Continue with Google"}
+                        </button>
+                        
+                        <button
+                            onClick={() => {
+                                const mockSession = {
+                                    access_token: "mock-token",
+                                    token_type: "bearer",
+                                    expires_in: 3600,
+                                    refresh_token: "mock-refresh",
+                                    user: {
+                                        id: "dev-user-id",
+                                        aud: "authenticated",
+                                        role: "authenticated",
+                                        email: "developer@example.com",
+                                        user_metadata: {
+                                            full_name: "Developer Guest",
+                                            avatar_url: "https://api.dicebear.com/7.x/bottts/svg?seed=dev",
+                                        },
+                                        app_metadata: {},
+                                        created_at: new Date().toISOString(),
+                                    },
+                                };
+                                setSession(mockSession as any);
+                            }}
+                            className="w-full py-2.5 rounded-xl border border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-900 transition-all font-bold text-xs uppercase tracking-wider cursor-pointer"
+                        >
+                            Enter Guest Mode
                         </button>
                     </div>
 

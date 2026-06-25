@@ -31,6 +31,8 @@ export interface Block {
     subtasks?: Subtask[];
     recurrence?: BlockRecurrence;
     recurrenceGroupId?: string;
+    flowRating?: 1 | 2 | 3; // 1=dragging, 2=okay, 3=deep focus
+    flowTag?: string; // optional one-word tag
 }
 
 export interface CalendarOverlap {

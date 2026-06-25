@@ -9,6 +9,8 @@ import { toLocalISODate, getMondayOfWeek, addWeeksToMondayKey, getWeekLabel } fr
 import { computeWeekAggregate } from "../services/weekLifecycleService";
 import type { DurationDisplayUnit } from "../utils/durationUtils";
 import { toast } from "react-hot-toast";
+import type { TimeBudget } from "../engine/budgetEngine";
+import { useSubscriptionStore } from "./useSubscriptionStore";
 import {
     createMonday,
     createTuesday,
@@ -184,6 +186,7 @@ interface ScheduleStore {
     accentColor: string;
     compactMode: boolean;
     durationDisplayUnit: DurationDisplayUnit;
+    timeBudgets: TimeBudget[];
 
     // Actions — Navigation
     setCurrentTab: (tab: AppTab) => void;
@@ -241,6 +244,9 @@ interface ScheduleStore {
 
     // Actions — Settings
     updateSettings: (settings: Partial<Pick<ScheduleStore, 'pomodoroWork' | 'pomodoroBreak' | 'pomodoroLongBreak' | 'pomodoroSessions' | 'accentColor' | 'compactMode' | 'gamificationEnabled' | 'durationDisplayUnit'>>) => void;
+
+    // Actions — Budgets
+    updateTimeBudget: (categoryId: string, updates: Partial<Omit<TimeBudget, 'categoryId'>>) => void;
 
     // Google Calendar actions
     setGoogleToken: (token: string | null) => void;
@@ -326,6 +332,12 @@ export const useScheduleStore = create<ScheduleStore>()(
             accentColor: "indigo",
             compactMode: false,
             durationDisplayUnit: "minutes",
+            timeBudgets: [
+                { categoryId: "work", targetMins: 2400 },
+                { categoryId: "health", targetMins: 300, minMins: 180 },
+                { categoryId: "study", targetMins: 300 },
+                { categoryId: "gaming", maxMins: 480 },
+            ],
 
             week: migrateWeekCommuteBlocks({
                 mon: createMonday(),
@@ -455,27 +467,43 @@ export const useScheduleStore = create<ScheduleStore>()(
                 }),
 
             addBlock: (day, type = "routine", label = "New Block", dur = 30) =>
-                set((state) => ({
-                    week: {
-                        ...state.week,
-                        [day]: {
-                            ...state.week[day],
-                            blocks: [
-                                ...state.week[day].blocks,
-                                {
-                                    id: nanoid(),
-                                    type: type as Block["type"],
-                                    label,
-                                    dur,
-                                    on: true,
-                                },
-                            ],
+                set((state) => {
+                    const activeCount = state.week[day].blocks.filter((b) => b.on).length;
+                    const limit = useSubscriptionStore.getState().getBlockLimit();
+                    if (activeCount >= limit) {
+                        useSubscriptionStore.getState().openUpgradeModal("unlimited_blocks");
+                        toast.error("Free plan limit reached (max 3 blocks/day). Upgrade to Pro!");
+                        return {};
+                    }
+                    return {
+                        week: {
+                            ...state.week,
+                            [day]: {
+                                ...state.week[day],
+                                blocks: [
+                                    ...state.week[day].blocks,
+                                    {
+                                        id: nanoid(),
+                                        type: type as Block["type"],
+                                        label,
+                                        dur,
+                                        on: true,
+                                    },
+                                ],
+                            },
                         },
-                    },
-                })),
+                    };
+                }),
 
             insertBlock: (day, type, id, orderedIds) =>
                 set((state) => {
+                    const activeCount = state.week[day].blocks.filter((b) => b.on).length;
+                    const limit = useSubscriptionStore.getState().getBlockLimit();
+                    if (activeCount >= limit) {
+                        useSubscriptionStore.getState().openUpgradeModal("unlimited_blocks");
+                        toast.error("Free plan limit reached (max 3 blocks/day). Upgrade to Pro!");
+                        return {};
+                    }
                     const catName = state.categories.find(c => c.id === type)?.name || type;
                     const newBlock: Block = {
                         id,
@@ -525,6 +553,14 @@ export const useScheduleStore = create<ScheduleStore>()(
 
             setBlockRecurrence: (day, blockId, recurrence) =>
                 set((state) => {
+                    if (recurrence !== "none") {
+                        const canAccess = useSubscriptionStore.getState().canAccess("block_recurrence");
+                        if (!canAccess) {
+                            useSubscriptionStore.getState().openUpgradeModal("block_recurrence");
+                            toast.error("Upgrade to Pro to enable recurring blocks!");
+                            return {};
+                        }
+                    }
                     const week = applyRecurrenceToWeek(state.week, day, blockId, recurrence);
                     const synced = {} as Record<DayKey, DayData>;
                     for (const dk of DAY_KEYS) {
@@ -535,6 +571,12 @@ export const useScheduleStore = create<ScheduleStore>()(
 
             copyDayScheduleToDays: (sourceDay, targetDays) =>
                 set((state) => {
+                    const canAccess = useSubscriptionStore.getState().canAccess("copy_schedule");
+                    if (!canAccess) {
+                        useSubscriptionStore.getState().openUpgradeModal("copy_schedule");
+                        toast.error("Upgrade to Pro to copy schedules!");
+                        return {};
+                    }
                     const source = state.week[sourceDay];
                     const week = { ...state.week };
                     for (const target of targetDays) {
@@ -633,7 +675,15 @@ export const useScheduleStore = create<ScheduleStore>()(
                     },
                 })),
 
-            updateQuickNotes: (notes) => set({ quickNotes: notes }),
+            updateQuickNotes: (notes) => set(() => {
+                const limit = useSubscriptionStore.getState().getNotesLimit();
+                if (notes.length > limit) {
+                    useSubscriptionStore.getState().openUpgradeModal("unlimited_notes");
+                    toast.error(`Free plan limits notes to ${limit} characters. Upgrade to Pro!`);
+                    return { quickNotes: notes.substring(0, limit) };
+                }
+                return { quickNotes: notes };
+            }),
 
             updateStreak: (completed) =>
                 set((state) => {
@@ -755,6 +805,20 @@ export const useScheduleStore = create<ScheduleStore>()(
 
             // Settings actions
             updateSettings: (settings) => set(settings),
+
+            updateTimeBudget: (categoryId, updates) =>
+                set((state) => {
+                    const exists = state.timeBudgets.some((b) => b.categoryId === categoryId);
+                    let newBudgets;
+                    if (exists) {
+                        newBudgets = state.timeBudgets.map((b) =>
+                            b.categoryId === categoryId ? { ...b, ...updates } : b
+                        );
+                    } else {
+                        newBudgets = [...state.timeBudgets, { categoryId, ...updates }];
+                    }
+                    return { timeBudgets: newBudgets };
+                }),
 
             setGoogleToken: (token) => set({ googleToken: token }),
             setGoogleCalendarLinked: (linked) => set({ googleCalendarLinked: linked }),
@@ -1150,6 +1214,7 @@ function getCloudPayload() {
         compactMode: s.compactMode,
         durationDisplayUnit: s.durationDisplayUnit,
         googleCalendarLinked: s.googleCalendarLinked,
+        timeBudgets: s.timeBudgets,
     };
 }
 
@@ -1218,6 +1283,12 @@ export async function hydrateFromCloud(userId: string) {
         googleCalendarLinked: !!cloud.googleCalendarLinked,
         habits: cloud.habits ?? [],
         habitCompletionsByWeek: cloud.habitCompletionsByWeek ?? {},
+        timeBudgets: cloud.timeBudgets ?? [
+            { categoryId: "work", targetMins: 2400 },
+            { categoryId: "health", targetMins: 300, minMins: 180 },
+            { categoryId: "study", targetMins: 300 },
+            { categoryId: "gaming", maxMins: 480 },
+        ],
         notificationPrefs: cloud.notificationPrefs ?? {
             enabled: false,
             blockReminders: true,

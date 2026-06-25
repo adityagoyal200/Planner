@@ -8,6 +8,9 @@ import DayScoreHeatmap from "./DayScoreHeatmap";
 import BadgeGrid from "./BadgeGrid";
 import InsightsPanel from "./InsightsPanel";
 import WeeklyHistory from "./WeeklyHistory";
+import BudgetRings from "./BudgetRings";
+import TimeDebtLedger from "./TimeDebtLedger";
+import PersonalRecords from "./PersonalRecords";
 
 export default function AnalyticsDashboard() {
     const { currentWeekKey, browsingWeekKey } = useScheduleStore();
@@ -27,10 +30,19 @@ export default function AnalyticsDashboard() {
             {/* XP & Level */}
             <XPCard />
 
+            {/* Personal Records Trophy Wall */}
+            <PersonalRecords />
+
             {/* Charts Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <SleepLineChart />
                 <TimeDonut />
+            </div>
+
+            {/* Budgets & Time Debt Section */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <BudgetRings />
+                <TimeDebtLedger />
             </div>
 
             {/* Focus + Heatmap */}
