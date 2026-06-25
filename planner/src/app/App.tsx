@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import DashboardLayout from "../components/common/DashboardLayout";
 import LoginScreen from "../components/auth/LoginScreen";
 import { useAuthStore } from "../store/useAuthStore";
-import { hydrateFromCloud, setCloudUserId } from "../store/useScheduleStore";
 import { migrateLegacyBlobIfNeeded } from "../services/migrateLegacyBlob";
+import { hydrateFromCloud, setCloudUserId } from "../store/useScheduleStore";
+
 
 export default function App() {
   const user = useAuthStore((s) => s.user);

@@ -150,6 +150,10 @@ export async function ensureGoogleAccessToken(
         return accessToken;
     }
 
+    if (!interactive) {
+        return null;
+    }
+
     if (!tokenClient) {
         await initGoogleAuth();
     }
