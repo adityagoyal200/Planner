@@ -11,6 +11,7 @@ export const XP_ACTIONS = {
     STREAK_DAILY: 5,       // multiplied by streak length
     ARCHIVE_WEEK: 100,
     LOG_REALITY: 15,
+    HABIT_COMPLETE: 5,
 } as const;
 
 export const LEVELS = [

@@ -63,6 +63,9 @@ export async function replaceBlocksForDay(date: string, blocks: Block[]) {
         actual_start: b.actualStart ?? null,
         actual_start_date: b.actualStartDate ?? null,
         subtasks_json: b.subtasks ?? [],
+        recurrence: b.recurrence && b.recurrence !== "none" ? b.recurrence : null,
+        recurrence_group_id: b.recurrenceGroupId ?? null,
+        note: b.note ?? null,
     }));
     if (rows.length > 0) {
         await supabase.from("blocks").insert(rows);

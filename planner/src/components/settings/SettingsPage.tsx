@@ -33,7 +33,7 @@ export default function SettingsPage() {
         pomodoroWork, pomodoroBreak, pomodoroLongBreak, pomodoroSessions,
         accentColor, compactMode, gamificationEnabled, durationDisplayUnit,
         updateSettings, resetStore, xp,
-        streakFreezes,
+        streakFreezes, copyDayScheduleToWeek,
     } = store;
 
     const day = week[selectedDay];
@@ -213,8 +213,25 @@ export default function SettingsPage() {
                     onClick={applyToAllDays}
                     className="mt-4 w-full p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-xs font-bold text-indigo-400 hover:bg-indigo-500 hover:text-white transition-colors cursor-pointer"
                 >
-                    Apply to All Days
+                    Apply wake / work / sleep to all days
                 </button>
+                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <button
+                        type="button"
+                        onClick={() => copyDayScheduleToWeek(selectedDay, false)}
+                        className="p-2.5 rounded-xl bg-zinc-800/50 border border-zinc-700 text-xs font-bold text-zinc-300 hover:bg-zinc-700 transition-colors cursor-pointer"
+                    >
+                        Copy {DAY_LABELS[selectedDay]} to weekdays
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => copyDayScheduleToWeek(selectedDay, true)}
+                        className="p-2.5 rounded-xl bg-zinc-800/50 border border-zinc-700 text-xs font-bold text-zinc-300 hover:bg-zinc-700 transition-colors cursor-pointer"
+                    >
+                        Copy {DAY_LABELS[selectedDay]} to all days
+                    </button>
+                </div>
+                <p className="text-[10px] text-zinc-600 mt-2">Week template copies blocks plus wake, work, commute, and sleep settings.</p>
             </div>
 
             {/* Pomodoro */}

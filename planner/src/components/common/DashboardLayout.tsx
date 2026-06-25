@@ -14,6 +14,8 @@ import { useScheduleStore } from "../../store/useScheduleStore";
 import { useGoogleCalendarSession } from "../../hooks/useGoogleCalendarSession";
 import { Toaster } from "react-hot-toast";
 import LevelUpModal from "./LevelUpModal";
+import StreakFreezeBanner from "./StreakFreezeBanner";
+import OnboardingWizard from "./OnboardingWizard";
 import { startNotificationScheduler, stopNotificationScheduler } from "../../services/notificationService";
 import { startWeekRolloverScheduler } from "../../services/weekRolloverService";
 
@@ -52,6 +54,7 @@ export default function DashboardLayout() {
                 return (
                     <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-[1fr_minmax(0,380px)] gap-6 lg:gap-8">
                         <div>
+                            <StreakFreezeBanner />
                             <NewWeekBanner />
                             <Timeline />
                         </div>
@@ -104,6 +107,7 @@ export default function DashboardLayout() {
             </div>
             <Toaster position="top-center" containerClassName="safe-pt" toastOptions={{ className: "max-w-[calc(100vw-2rem)]" }} />
             <LevelUpModal />
+            <OnboardingWizard />
         </div>
     );
 }

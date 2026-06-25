@@ -17,6 +17,8 @@ export interface NormalizedCloudState {
     quickNotes?: string;
     streak?: number;
     lastCompletedDate?: string | null;
+    streakFrozenDates?: string[];
+    onboardingComplete?: boolean;
     selectedDay?: string;
     xp?: number;
     earnedBadges?: unknown;

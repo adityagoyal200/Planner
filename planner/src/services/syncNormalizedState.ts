@@ -20,6 +20,8 @@ export interface CloudSyncPayload {
     quickNotes: string;
     streak: number;
     lastCompletedDate: string | null;
+    streakFrozenDates: string[];
+    onboardingComplete: boolean;
     selectedDay: string;
     weekHistory: unknown;
     xp: number;
@@ -57,6 +59,7 @@ export async function syncNormalizedFromPayload(payload: CloudSyncPayload): Prom
             app_meta_json: {
                 streak: payload.streak,
                 lastCompletedDate: payload.lastCompletedDate,
+                streakFrozenDates: payload.streakFrozenDates,
                 selectedDay: payload.selectedDay,
                 currentWeekKey: payload.currentWeekKey,
                 xp: payload.xp,
@@ -67,6 +70,7 @@ export async function syncNormalizedFromPayload(payload: CloudSyncPayload): Prom
                 durationDisplayUnit: payload.durationDisplayUnit,
                 googleCalendarLinked: payload.googleCalendarLinked,
             },
+            onboarding_complete: payload.onboardingComplete,
         });
 
         await replaceHabits(payload.habits);

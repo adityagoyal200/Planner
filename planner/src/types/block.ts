@@ -15,6 +15,8 @@ export interface Subtask {
     done: boolean;
 }
 
+export type BlockRecurrence = "none" | "daily" | "weekdays" | "weekly";
+
 export interface Block {
     id: string;
     type: BlockType; 
@@ -27,6 +29,8 @@ export interface Block {
     actualStartDate?: string | null;  // ISO date string e.g. "2026-06-09"
     completed?: boolean;
     subtasks?: Subtask[];
+    recurrence?: BlockRecurrence;
+    recurrenceGroupId?: string;
 }
 
 export interface CalendarOverlap {

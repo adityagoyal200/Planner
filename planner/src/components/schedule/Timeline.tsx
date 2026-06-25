@@ -6,14 +6,14 @@ import { useScheduleStore } from "../../store/useScheduleStore";
 import { formatTime } from "../../utils/formatTime";
 import { addDaysToISODate, addWeeksToMondayKey, getDateForDayKeyInWeek, getDaysDiff, parseISODate } from "../../utils/dateUtils";
 import BlockTypePicker from "./BlockTypePicker";
-import type { BlockType } from "../../types/block";
+import type { BlockType, BlockRecurrence } from "../../types/block";
 import { minsToTimeStr, parseTimeInput } from "../../utils/timeUtils";
 import { formatBlockDuration, formatBlockDurationLabel, getDurationSuffix, getEffectiveDurationUnit, parseBlockDurationInput } from "../../utils/durationUtils";
 
 import { nanoid } from "nanoid";
 
 export default function Timeline() {
-    const { week, selectedDay, updateBlock, removeBlock, reorderBlocks, insertBlock, setFocusBlock, focusBlockId, calendarEvents, categories, browsingWeekKey, currentWeekKey, durationDisplayUnit } = useScheduleStore();
+    const { week, selectedDay, updateBlock, removeBlock, reorderBlocks, insertBlock, setFocusBlock, focusBlockId, calendarEvents, categories, browsingWeekKey, currentWeekKey, durationDisplayUnit, setBlockRecurrence } = useScheduleStore();
     const isReadOnly = !!browsingWeekKey;
     const day = week[selectedDay];
     const [showPicker, setShowPicker] = useState(false);
@@ -444,9 +444,22 @@ export default function Timeline() {
                                                                     </button>
 
                                                                     {!block.locked && (
-                                                                        <button onClick={() => removeBlock(selectedDay, block.id)} className="p-2 text-zinc-500 hover:text-rose-500 transition ml-1 cursor-pointer">
-                                                                            <Trash2 className="w-4 h-4" />
-                                                                        </button>
+                                                                        <>
+                                                                            <select
+                                                                                value={block.recurrence || "none"}
+                                                                                onChange={(e) => setBlockRecurrence(selectedDay, block.id, e.target.value as BlockRecurrence)}
+                                                                                className="text-[10px] font-bold uppercase tracking-wider bg-zinc-900 border border-zinc-800 rounded-lg px-2 py-1 text-zinc-400 focus:outline-none focus:border-zinc-600 cursor-pointer"
+                                                                                title="Recurrence"
+                                                                            >
+                                                                                <option value="none">Once</option>
+                                                                                <option value="daily">Daily</option>
+                                                                                <option value="weekdays">Weekdays</option>
+                                                                                <option value="weekly">Weekly</option>
+                                                                            </select>
+                                                                            <button onClick={() => removeBlock(selectedDay, block.id)} className="p-2 text-zinc-500 hover:text-rose-500 transition ml-1 cursor-pointer">
+                                                                                <Trash2 className="w-4 h-4" />
+                                                                            </button>
+                                                                        </>
                                                                     )}
                                                                     
                                                                     <button 

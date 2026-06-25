@@ -1,9 +1,10 @@
 import { useScheduleStore } from "../../store/useScheduleStore";
 import { getLevelInfo } from "../../engine/xpEngine";
 import { computeWeeklyXpSummary } from "../../services/analyticsService";
+import { isStreakAtRisk } from "../../utils/streakUtils";
 
 export default function XPCard() {
-    const { xp, streak, gamificationEnabled, week, streakFreezes, streakFreezeUsedThisWeek, currentWeekKey, browsingWeekKey } = useScheduleStore();
+    const { xp, streak, gamificationEnabled, week, streakFreezes, streakFreezeUsedThisWeek, streakFrozenDates, lastCompletedDate, currentWeekKey, browsingWeekKey, useStreakFreeze } = useScheduleStore();
     
     if (!gamificationEnabled) return null;
 
@@ -11,6 +12,8 @@ export default function XPCard() {
     const totalXP = xp;
     const info = getLevelInfo(totalXP);
     const weekXPLabel = weekXP.toLocaleString();
+    const atRisk = isStreakAtRisk(streak, lastCompletedDate, streakFrozenDates);
+    const canFreeze = atRisk && streakFreezes > 0 && !streakFreezeUsedThisWeek;
 
     // SVG arc for circular progress
     const size = 100;
@@ -105,6 +108,15 @@ export default function XPCard() {
                                 <span className="text-xs">❄️</span>
                                 <span className="text-[10px] font-bold text-zinc-600">{streakFreezes} freeze</span>
                             </div>
+                        )}
+                        {canFreeze && (
+                            <button
+                                type="button"
+                                onClick={() => useStreakFreeze()}
+                                className="text-[10px] font-bold text-cyan-400 hover:text-cyan-300 uppercase tracking-wider cursor-pointer"
+                            >
+                                Use freeze
+                            </button>
                         )}
                     </div>
                 </div>

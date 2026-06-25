@@ -5,7 +5,7 @@ import type { Block, BlockCategory } from "../types/block";
 import type { DayData } from "../types/schedule";
 import { type CalendarEvent, type GoogleEventUpdate, updateGoogleEventAuthenticated } from "../services/googleCalendar";
 import { getLevelInfo } from "../engine/xpEngine";
-import { addDaysToISODate, toLocalISODate, getMondayOfWeek, addWeeksToMondayKey, getWeekLabel } from "../utils/dateUtils";
+import { toLocalISODate, getMondayOfWeek, addWeeksToMondayKey, getWeekLabel } from "../utils/dateUtils";
 import { computeWeekAggregate } from "../services/weekLifecycleService";
 import type { DurationDisplayUnit } from "../utils/durationUtils";
 import { toast } from "react-hot-toast";
@@ -26,6 +26,10 @@ import {
     mirrorCommuteDuration,
     syncDayMetaFromBlocks,
 } from "../utils/commuteBlocks";
+import { isStreakConsecutive } from "../utils/streakUtils";
+import { applyRecurrenceToWeek, cloneBlocksForTemplate } from "../utils/recurringBlocks";
+import type { BlockRecurrence } from "../types/block";
+import { XP_ACTIONS } from "../engine/xpEngine";
 
 // Generic SaaS defaults
 const DEFAULT_CATEGORIES: BlockCategory[] = [
@@ -138,6 +142,10 @@ interface ScheduleStore {
     // Streak tracking
     streak: number;
     lastCompletedDate: string | null;
+    streakFrozenDates: string[];
+
+    // Onboarding
+    onboardingComplete: boolean;
 
     // Focus timer
     focusBlockId: string | null;
@@ -197,6 +205,10 @@ interface ScheduleStore {
     addBlock: (day: DayKey, type?: string, label?: string, dur?: number) => void;
     insertBlock: (day: DayKey, type: string, id: string, orderedIds: string[]) => void;
     removeBlock: (day: DayKey, blockId: string) => void;
+    setBlockRecurrence: (day: DayKey, blockId: string, recurrence: BlockRecurrence) => void;
+    copyDayScheduleToDays: (sourceDay: DayKey, targetDays: DayKey[]) => void;
+    copyDayScheduleToWeek: (sourceDay: DayKey, includeWeekends?: boolean) => void;
+    completeOnboarding: (payload: { wakeTime: number; workStart: number; commuteMins: number; withWork: boolean }) => void;
 
     // Actions — Subtasks
     addSubtask: (day: DayKey, blockId: string, text: string) => void;
@@ -265,6 +277,8 @@ export const useScheduleStore = create<ScheduleStore>()(
             quickNotes: "",
             streak: 0,
             lastCompletedDate: null,
+            streakFrozenDates: [],
+            onboardingComplete: false,
             focusBlockId: null,
             googleToken: null,
             googleCalendarLinked: false,
@@ -490,16 +504,74 @@ export const useScheduleStore = create<ScheduleStore>()(
 
             removeBlock: (day, blockId) =>
                 set((state) => {
-                    const dayData = syncDayMetaFromBlocks({
-                        ...state.week[day],
-                        blocks: state.week[day].blocks.filter((b) => b.id !== blockId),
-                    });
-                    return {
-                        week: {
-                            ...state.week,
-                            [day]: dayData,
-                        },
-                    };
+                    const block = state.week[day].blocks.find((b) => b.id === blockId);
+                    const groupId = block?.recurrenceGroupId;
+                    let week = { ...state.week };
+                    if (groupId) {
+                        for (const dk of DAY_KEYS) {
+                            week[dk] = syncDayMetaFromBlocks({
+                                ...week[dk],
+                                blocks: week[dk].blocks.filter((b) => b.recurrenceGroupId !== groupId && b.id !== blockId),
+                            });
+                        }
+                    } else {
+                        week[day] = syncDayMetaFromBlocks({
+                            ...week[day],
+                            blocks: week[day].blocks.filter((b) => b.id !== blockId),
+                        });
+                    }
+                    return { week };
+                }),
+
+            setBlockRecurrence: (day, blockId, recurrence) =>
+                set((state) => {
+                    const week = applyRecurrenceToWeek(state.week, day, blockId, recurrence);
+                    const synced = {} as Record<DayKey, DayData>;
+                    for (const dk of DAY_KEYS) {
+                        synced[dk] = syncDayMetaFromBlocks(week[dk]);
+                    }
+                    return { week: migrateWeekCommuteBlocks(synced) };
+                }),
+
+            copyDayScheduleToDays: (sourceDay, targetDays) =>
+                set((state) => {
+                    const source = state.week[sourceDay];
+                    const week = { ...state.week };
+                    for (const target of targetDays) {
+                        if (target === sourceDay) continue;
+                        week[target] = {
+                            ...week[target],
+                            wakeTime: source.wakeTime,
+                            workStart: source.workStart,
+                            sleepTarget: source.sleepTarget,
+                            commuteMins: source.commuteMins,
+                            blocks: cloneBlocksForTemplate(source.blocks),
+                        };
+                    }
+                    return { week: migrateWeekCommuteBlocks(week) };
+                }),
+
+            copyDayScheduleToWeek: (sourceDay, includeWeekends = false) => {
+                const targets = includeWeekends
+                    ? DAY_KEYS.filter((d) => d !== sourceDay)
+                    : (["mon", "tue", "wed", "thu", "fri"] as DayKey[]).filter((d) => d !== sourceDay);
+                useScheduleStore.getState().copyDayScheduleToDays(sourceDay, targets);
+            },
+
+            completeOnboarding: ({ wakeTime, workStart, commuteMins, withWork }) =>
+                set((state) => {
+                    const weekdays: DayKey[] = ["mon", "tue", "wed", "thu", "fri"];
+                    const week = { ...state.week };
+                    for (const day of DAY_KEYS) {
+                        const isWeekday = weekdays.includes(day);
+                        week[day] = applyCommuteMinsToDay({
+                            ...week[day],
+                            wakeTime,
+                            workStart: withWork && isWeekday ? workStart : 0,
+                            commuteMins: withWork && isWeekday ? commuteMins : 0,
+                        }, withWork && isWeekday ? commuteMins : 0);
+                    }
+                    return { week: migrateWeekCommuteBlocks(week), onboardingComplete: true };
                 }),
 
             // Subtask actions
@@ -568,13 +640,16 @@ export const useScheduleStore = create<ScheduleStore>()(
                     const today = toLocalISODate();
                     if (!completed) return state;
 
-                    const yesterday = addDaysToISODate(today, -1);
-                    const isConsecutive = state.lastCompletedDate === yesterday || state.lastCompletedDate === today;
+                    const consecutive = isStreakConsecutive(
+                        state.lastCompletedDate,
+                        state.streakFrozenDates,
+                        today
+                    );
 
                     return {
                         streak: state.lastCompletedDate === today
                             ? state.streak
-                            : isConsecutive
+                            : consecutive
                                 ? state.streak + 1
                                 : 1,
                         lastCompletedDate: today,
@@ -617,10 +692,17 @@ export const useScheduleStore = create<ScheduleStore>()(
                     earnedBadges: [...state.earnedBadges, { id: badgeId, unlockedAt: new Date().toISOString() }]
                 };
             }),
-            useStreakFreeze: () => set((state) => ({
-                streakFreezes: Math.max(0, state.streakFreezes - 1),
-                streakFreezeUsedThisWeek: true,
-            })),
+            useStreakFreeze: () => set((state) => {
+                const today = toLocalISODate();
+                if (state.streakFreezes <= 0 || state.streakFreezeUsedThisWeek) return state;
+                if (state.streakFrozenDates.includes(today)) return state;
+                return {
+                    streakFreezes: Math.max(0, state.streakFreezes - 1),
+                    streakFreezeUsedThisWeek: true,
+                    streakFrozenDates: [...state.streakFrozenDates, today],
+                    lastCompletedDate: state.lastCompletedDate === today ? state.lastCompletedDate : today,
+                };
+            }),
             setLevelUpModal: (modal) => set({ levelUpModal: modal }),
 
             // Journal actions
@@ -646,12 +728,13 @@ export const useScheduleStore = create<ScheduleStore>()(
             removeHabit: (habitId) => set((state) => ({
                 habits: state.habits.filter(h => h.id !== habitId)
             })),
-            toggleHabitCompletion: (habitId, day) => set((state) => {
+            toggleHabitCompletion: (habitId, day) => {
+                const state = useScheduleStore.getState();
                 const weekKey = state.browsingWeekKey || state.currentWeekKey;
                 const weekCompletions = state.habitCompletionsByWeek[weekKey] || {};
                 const habitDays = weekCompletions[habitId] || ({} as Record<DayKey, boolean>);
                 const newDone = !habitDays[day];
-                return {
+                set({
                     habitCompletionsByWeek: {
                         ...state.habitCompletionsByWeek,
                         [weekKey]: {
@@ -659,8 +742,11 @@ export const useScheduleStore = create<ScheduleStore>()(
                             [habitId]: { ...habitDays, [day]: newDone },
                         },
                     },
-                };
-            }),
+                });
+                if (newDone && state.gamificationEnabled) {
+                    state.addXP(XP_ACTIONS.HABIT_COMPLETE);
+                }
+            },
 
             // Notification actions
             updateNotificationPrefs: (prefs) => set((state) => ({
@@ -927,6 +1013,8 @@ export const useScheduleStore = create<ScheduleStore>()(
                             ...state.journalsByWeek,
                             [newMondayKey]: state.journalsByWeek[newMondayKey] || createEmptyJournalWeek(),
                         },
+                        streakFreezeUsedThisWeek: false,
+                        streakFrozenDates: [],
                     };
                 }),
 
@@ -939,6 +1027,8 @@ export const useScheduleStore = create<ScheduleStore>()(
                 quickNotes: "",
                 streak: 0,
                 lastCompletedDate: null,
+                streakFrozenDates: [],
+                onboardingComplete: false,
                 focusBlockId: null,
                 googleToken: null,
                 googleCalendarLinked: false,
@@ -1039,6 +1129,8 @@ function getCloudPayload() {
         quickNotes: s.quickNotes,
         streak: s.streak,
         lastCompletedDate: s.lastCompletedDate,
+        streakFrozenDates: s.streakFrozenDates,
+        onboardingComplete: s.onboardingComplete,
         selectedDay: s.selectedDay,
         weekHistory: s.weekHistory,
         xp: s.xp,
@@ -1073,10 +1165,11 @@ useScheduleStore.subscribe(() => {
 });
 
 export async function hydrateFromCloud(userId: string) {
-    const cloud = await fetchCloudState(userId);
+    const { loadStateFromNormalized } = await import("../services/loadNormalizedState");
+    const normalized = await loadStateFromNormalized(userId);
+    const cloud = normalized || await fetchCloudState(userId);
+
     if (!cloud || !cloud.week) {
-        // If there's no cloud state, it's a new user!
-        // We MUST wipe the in-memory state so they don't see the previous user's local data.
         useScheduleStore.getState().resetStore();
         return false;
     }
@@ -1105,6 +1198,8 @@ export async function hydrateFromCloud(userId: string) {
         quickNotes: cloud.quickNotes ?? "",
         streak: cloud.streak ?? 0,
         lastCompletedDate: cloud.lastCompletedDate ?? null,
+        streakFrozenDates: cloud.streakFrozenDates ?? [],
+        onboardingComplete: cloud.onboardingComplete ?? false,
         selectedDay: cloud.selectedDay ?? "mon",
         weekHistory: cloud.weekHistory ?? [],
         xp: cloud.xp ?? 0,

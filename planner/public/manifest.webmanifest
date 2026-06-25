@@ -1,0 +1,17 @@
+{
+  "name": "Planner",
+  "short_name": "Planner",
+  "description": "Weekly schedule planner with habits, journal, and analytics",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#050505",
+  "theme_color": "#050505",
+  "icons": [
+    {
+      "src": "/icons.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
