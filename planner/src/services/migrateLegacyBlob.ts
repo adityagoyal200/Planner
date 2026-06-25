@@ -1,9 +1,10 @@
 import type { DayKey } from "../store/useScheduleStore";
+import type { Habit } from "../store/useScheduleStore";
 import type { DayData } from "../types/schedule";
 import type { JournalEntry } from "../store/useScheduleStore";
 import { getDateForDayKeyInWeek } from "../utils/dateUtils";
 import { fetchLegacyBlobForCurrentUser } from "./supabase";
-import { getMigrationStatus, markMigrated, replaceBlocksForDay, upsertDay, upsertJournalEntry, upsertSettings } from "./normalizedRepo";
+import { getMigrationStatus, markMigrated, replaceBlocksForDay, replaceHabitCompletions, replaceHabits, upsertDay, upsertJournalEntry, upsertSettings } from "./normalizedRepo";
 
 type LegacyWeek = Record<DayKey, DayData>;
 
@@ -23,7 +24,26 @@ export async function migrateLegacyBlobIfNeeded(): Promise<boolean> {
         accent_color: legacy.accentColor ?? "indigo",
         compact_mode: legacy.compactMode ?? false,
         gamification_enabled: legacy.gamificationEnabled ?? true,
+        quick_notes: legacy.quickNotes ?? "",
+        categories_json: legacy.categories ?? [],
+        notification_prefs: legacy.notificationPrefs ?? {},
+        app_meta_json: {
+            streak: legacy.streak ?? 0,
+            lastCompletedDate: legacy.lastCompletedDate ?? null,
+            xp: legacy.xp ?? 0,
+            earnedBadges: legacy.earnedBadges ?? [],
+            streakFreezes: legacy.streakFreezes ?? 1,
+            streakFreezeUsedThisWeek: legacy.streakFreezeUsedThisWeek ?? false,
+            weekHistory: legacy.weekHistory ?? [],
+            durationDisplayUnit: legacy.durationDisplayUnit ?? "minutes",
+            googleCalendarLinked: legacy.googleCalendarLinked ?? false,
+            currentWeekKey: legacy.currentWeekKey,
+            selectedDay: legacy.selectedDay ?? "mon",
+        },
     });
+
+    await replaceHabits((legacy.habits as Habit[]) ?? []);
+    await replaceHabitCompletions((legacy.habitCompletionsByWeek as Record<string, Record<string, Record<DayKey, boolean>>>) ?? {});
 
     const weeks = (legacy.weeks as Record<string, LegacyWeek>) || {};
     const journalsByWeek = (legacy.journalsByWeek as Record<string, Record<DayKey, JournalEntry>>) || {};

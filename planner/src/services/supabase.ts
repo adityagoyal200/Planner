@@ -14,7 +14,7 @@ export interface NormalizedCloudState {
     currentWeekKey?: string;
     journalsByWeek?: unknown;
     categories?: unknown;
-    quickNotes?: unknown;
+    quickNotes?: string;
     streak?: number;
     lastCompletedDate?: string | null;
     selectedDay?: string;
@@ -31,6 +31,9 @@ export interface NormalizedCloudState {
     compactMode?: boolean;
     durationDisplayUnit?: "minutes" | "hours";
     googleCalendarLinked?: boolean;
+    habits?: unknown;
+    habitCompletionsByWeek?: unknown;
+    notificationPrefs?: unknown;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

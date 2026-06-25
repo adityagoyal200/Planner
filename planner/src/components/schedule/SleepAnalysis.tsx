@@ -4,24 +4,23 @@ import { formatTime } from "../../utils/formatTime";
 import { addDaysToISODate, getDateForDayKeyInWeek } from "../../utils/dateUtils";
 import { getTotalSleepDurationMins } from "../../utils/sleepUtils";
 import { minsToTimeStr, parseTimeInput } from "../../utils/timeUtils";
+import { resolvePreviousNightContext } from "../../utils/weekContext";
 
 export default function SleepAnalysis() {
-    const { selectedDay, week, currentWeekKey, browsingWeekKey, updateActualWakeTime, updateActualSleepTime, updateActualWakeDate, updateActualSleepDate } = useScheduleStore();
+    const { selectedDay, week, weeks, weekHistory, currentWeekKey, browsingWeekKey, updateActualWakeTime, updateActualSleepTime, updateActualWakeDate, updateActualSleepDate } = useScheduleStore();
     const day = week[selectedDay];
     const isReadOnly = !!browsingWeekKey;
 
-    const days = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
-    const currentIdx = days.indexOf(selectedDay);
-    const yesterdayKey = days[(currentIdx - 1 + 7) % 7] as keyof typeof week;
-    const yesterdayData = week[yesterdayKey];
-    
     const viewedWeekKey = browsingWeekKey || currentWeekKey;
     const refDate = getDateForDayKeyInWeek(selectedDay, viewedWeekKey);
-    const prevRefDate = getDateForDayKeyInWeek(yesterdayKey, viewedWeekKey);
-    
-    // Calculate yesterday's sleep for comparison
-    const yDayScheduled = computeSchedule(yesterdayData, [], { referenceDate: prevRefDate });
-    const yDayDuration = getTotalSleepDurationMins(yesterdayData, yDayScheduled.sleepTime, yDayScheduled.totalNapMins);
+
+    const prevNight = resolvePreviousNightContext(selectedDay, viewedWeekKey, week, weeks, weekHistory);
+    const yDayScheduled = prevNight.dayData
+        ? computeSchedule(prevNight.dayData, [], { referenceDate: prevNight.refDate })
+        : { sleepTime: 0, totalNapMins: 0 };
+    const yDayDuration = prevNight.dayData
+        ? getTotalSleepDurationMins(prevNight.dayData, yDayScheduled.sleepTime, yDayScheduled.totalNapMins)
+        : 0;
     const yesterdaySleepStr = (yDayDuration / 60).toFixed(1);
 
     if (!day) return null;

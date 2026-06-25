@@ -2,6 +2,7 @@ import { useState } from "react";
 import { nanoid } from "nanoid";
 import { useScheduleStore, DAY_KEYS, type DayKey, type Habit } from "../../store/useScheduleStore";
 import { getWeekLabel } from "../../utils/dateUtils";
+import { computeHabitStreak, isHabitActiveOnDay } from "../../utils/habitStreak";
 
 const FREQUENCY_OPTIONS = [
     { id: "daily", label: "Every Day" },
@@ -18,36 +19,6 @@ const DAY_FULL_LABELS: Record<DayKey, string> = {
 };
 
 const HABIT_EMOJIS = ["💧", "🧘", "📖", "💊", "🏃", "🎯", "✍️", "🧹", "🌿", "😴", "🍎", "📵", "🎵", "🙏", "💡", "🧠"];
-
-function isHabitActiveOnDay(habit: Habit, day: DayKey): boolean {
-    if (habit.frequency === "daily") return true;
-    if (habit.frequency === "weekdays") return ["mon", "tue", "wed", "thu", "fri"].includes(day);
-    if (habit.frequency === "custom") return habit.customDays?.includes(day) ?? false;
-    return false;
-}
-
-function computeHabitStreak(
-    habit: Habit,
-    habitCompletionsByWeek: Record<string, Record<string, Record<DayKey, boolean>>>,
-    currentWeekKey: string
-): number {
-    // Simplified streak: count consecutive completed days going backwards from today
-    const today = new Date();
-    const todayDayIndex = today.getDay() === 0 ? 6 : today.getDay() - 1;
-    let streak = 0;
-
-    // Check current week backwards from today
-    for (let i = todayDayIndex; i >= 0; i--) {
-        const dayKey = DAY_KEYS[i];
-        if (!isHabitActiveOnDay(habit, dayKey)) continue;
-        const weekCompletions = habitCompletionsByWeek[currentWeekKey];
-        const done = weekCompletions?.[habit.id]?.[dayKey] ?? false;
-        if (done) streak++;
-        else break;
-    }
-
-    return streak;
-}
 
 export default function HabitTracker() {
     const {
@@ -192,7 +163,7 @@ export default function HabitTracker() {
 
                     {/* Habit Rows */}
                     {habits.map(habit => {
-                        const streak = computeHabitStreak(habit, habitCompletionsByWeek, currentWeekKey);
+                        const streak = computeHabitStreak(habit, habitCompletionsByWeek);
                         const habitDays = weekCompletions[habit.id] || {};
                         const activeDays = DAY_KEYS.filter(d => isHabitActiveOnDay(habit, d));
                         const doneDays = activeDays.filter(d => habitDays[d]);

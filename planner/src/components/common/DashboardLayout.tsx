@@ -15,6 +15,7 @@ import { useGoogleCalendarSession } from "../../hooks/useGoogleCalendarSession";
 import { Toaster } from "react-hot-toast";
 import LevelUpModal from "./LevelUpModal";
 import { startNotificationScheduler, stopNotificationScheduler } from "../../services/notificationService";
+import { startWeekRolloverScheduler } from "../../services/weekRolloverService";
 
 const ACCENT_MAP: Record<string, string> = {
     indigo: "#6366f1",
@@ -30,6 +31,8 @@ export default function DashboardLayout() {
     const { currentTab, accentColor, compactMode, notificationPrefs } = useScheduleStore();
 
     useGoogleCalendarSession();
+
+    useEffect(() => startWeekRolloverScheduler(), []);
 
     // Notification scheduler lifecycle
     useEffect(() => {

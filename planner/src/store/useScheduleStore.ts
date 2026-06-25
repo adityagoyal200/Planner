@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { nanoid } from "nanoid";
-import type { Block, BlockCategory, Subtask } from "../types/block";
+import type { Block, BlockCategory } from "../types/block";
 import type { DayData } from "../types/schedule";
 import { type CalendarEvent, type GoogleEventUpdate, updateGoogleEventAuthenticated } from "../services/googleCalendar";
 import { getLevelInfo } from "../engine/xpEngine";
@@ -1012,6 +1012,7 @@ export const useScheduleStore = create<ScheduleStore>()(
 );
 
 import { saveCloudState, fetchCloudState } from "../services/supabase";
+import { syncNormalizedFromPayload } from "../services/syncNormalizedState";
 
 let syncTimer: ReturnType<typeof setTimeout> | null = null;
 let _currentUserId: string | null = null;
@@ -1065,7 +1066,9 @@ useScheduleStore.subscribe(() => {
     if (syncTimer) clearTimeout(syncTimer);
     const uid = _currentUserId;
     syncTimer = setTimeout(() => {
-        saveCloudState(uid, getCloudPayload());
+        const payload = getCloudPayload();
+        saveCloudState(uid, payload);
+        syncNormalizedFromPayload(payload);
     }, 2000);
 });
 
@@ -1141,5 +1144,7 @@ export async function hydrateFromCloud(userId: string) {
 
 export async function forcePushToCloud() {
     if (!_currentUserId) return;
-    await saveCloudState(_currentUserId, getCloudPayload());
+    const payload = getCloudPayload();
+    await saveCloudState(_currentUserId, payload);
+    await syncNormalizedFromPayload(payload);
 }

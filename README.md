@@ -36,15 +36,16 @@ Edit `.env`:
 
 ### 3. Supabase database
 
-In **Supabase → SQL Editor**, run the migration:
+In **Supabase → SQL Editor**, run migrations in order:
 
 ```
 planner/supabase/migrations/0001_cal_style_schema.sql
+planner/supabase/migrations/0002_extended_schema.sql
 ```
 
-This creates normalized tables (`days`, `blocks`, `journal_entries`, etc.) with row-level security.
+This creates normalized tables (`days`, `blocks`, `journal_entries`, `habits`, etc.) with row-level security.
 
-> The app still reads/writes the legacy `planner_state` JSON blob for full state sync. Normalized tables are populated on first-login migration.
+> The app **reads** the legacy `planner_state` JSON blob on login for full state restore. On every save it **dual-writes** to normalized tables via `syncNormalizedState.ts`. Run both migrations so dual-write succeeds.
 
 ### 4. Supabase Auth (Google)
 
