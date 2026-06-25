@@ -8,6 +8,7 @@ import { getLevelInfo } from "../../engine/xpEngine";
 import { useSubscriptionStore } from "../../store/useSubscriptionStore";
 import TrialBanner from "../paywall/TrialBanner";
 import LifeScoreGauge from "./LifeScoreGauge";
+import AdBanner from "./AdBanner";
 
 const days = [
     { id: "mon", label: "M" },
@@ -142,10 +143,13 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
                 <blockquote className="text-zinc-500 text-sm italic leading-relaxed">
                     "{quote.text}"
                 </blockquote>
-                <div className="text-zinc-600 text-xs font-bold uppercase tracking-wider mt-2">
+                <div className="text-zinc-600 text-xs font-bold uppercase tracking-wider mt-2 mb-4">
                     — {quote.author}
                 </div>
             </div>
+
+            {/* Google Ads */}
+            <AdBanner slotId="sidebar-ad" />
         </div>
     );
 }

@@ -21,6 +21,7 @@ import { startWeekRolloverScheduler } from "../../services/weekRolloverService";
 import { useSubscriptionStore } from "../../store/useSubscriptionStore";
 import UpgradeModal from "../paywall/UpgradeModal";
 import PremiumGate from "../paywall/PremiumGate";
+import AdBanner from "./AdBanner";
 
 const ACCENT_MAP: Record<string, string> = {
     indigo: "#6366f1",
@@ -127,6 +128,11 @@ export default function DashboardLayout() {
                         <WeekNavigator />
                     </div>
                     {renderTabContent()}
+
+                    {/* Google Ads */}
+                    <div className="max-w-6xl mx-auto mt-6 px-4 md:px-0">
+                        <AdBanner slotId="dashboard-bottom-ad" />
+                    </div>
                 </main>
             </div>
             <Toaster position="top-center" containerClassName="safe-pt" toastOptions={{ className: "max-w-[calc(100vw-2rem)]" }} />
